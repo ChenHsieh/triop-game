@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HexaMath Duel</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: #f9f9f9;
+      margin: 0;
+      padding: 2rem;
+    }
+    h1 { margin-bottom: 0.2rem; }
+    .target { font-size: 1.2rem; margin-bottom: 1rem; }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 80px);
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 1rem;
+    }
+    .hex {
+      width: 70px;
+      height: 70px;
+      background: #fff;
+      border: 2px solid #444;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-weight: bold;
+      border-radius: 12px;
+    }
+    .log {
+      width: 100%;
+      max-width: 500px;
+      background: #eee;
+      padding: 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      margin-top: 1rem;
+    }
+    input[type="text"] {
+      padding: 0.5rem;
+      font-size: 1rem;
+      margin-right: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>HexaMath Duel</h1>
+  <div class="target">🎯 Target: <span id="target">?</span></div>
+  <button onclick="startNewGame()">🔄 New Puzzle</button>
+  <div class="board" id="board"></div>
+  <div>
+    <input type="text" id="sequence" placeholder="Enter 3-letter combo (e.g., ACF)" maxlength="3" />
+    <button onclick="submitCombo()">Submit</button>
+  </div>
+  <div class="log" id="log"></div>
+
+  <script>
+    const ops = ['+', '-', '*', '/'];
+    const letters = 'ABCDEFGHIJKL'.split('');
+    const board = {};
+    const solutions = new Set();
+    const tried = new Set();
+
+    function randomBoard() {
+      letters.forEach(l => {
+        const op = ops[Math.floor(Math.random() * ops.length)];
+        const num = Math.floor(Math.random() * 9) + 1;
+        board[l] = op + num;
+      });
+    }
+
+    function displayBoard() {
+      const boardEl = document.getElementById('board');
+      boardEl.innerHTML = '';
+      letters.forEach(l => {
+        const div = document.createElement('div');
+        div.className = 'hex';
+        div.innerHTML = `<div>${l}</div><div>${board[l]}</div>`;
+        boardEl.appendChild(div);
+      });
+    }
+
+    function applyOps(a, b, c) {
+      const v1 = parseInt(board[a].slice(1));
+      const op2 = board[b][0];
+      const n2 = parseInt(board[b].slice(1));
+      const op3 = board[c][0];
+      const n3 = parseInt(board[c].slice(1));
+      let result = v1;
+      result = eval(`result ${op2} ${n2}`);
+      result = eval(`result ${op3} ${n3}`);
+      return Number.isInteger(result) ? result : null;
+    }
+
+    function generateTarget() {
+      const combos = [];
+      for (let i = 0; i < letters.length; i++) {
+        for (let j = 0; j < letters.length; j++) {
+          for (let k = 0; k < letters.length; k++) {
+            if (i !== j && j !== k && i !== k) {
+              const combo = [letters[i], letters[j], letters[k]];
+              const val = applyOps(...combo);
+              if (val !== null && Number.isFinite(val)) {
+                combos.push({ combo: combo.join(''), val });
+              }
+            }
+          }
+        }
+      }
+      const choice = combos[Math.floor(Math.random() * combos.length)];
+      document.getElementById('target').textContent = choice.val;
+      combos.filter(c => c.val === choice.val).forEach(c => solutions.add(c.combo));
+    }
+
+    function submitCombo() {
+      const input = document.getElementById('sequence');
+      const combo = input.value.toUpperCase();
+      const log = document.getElementById('log');
+      if (combo.length !== 3 || new Set(combo).size !== 3 || ![...combo].every(c => letters.includes(c))) {
+        log.innerHTML += `🚫 Invalid input: ${combo}<br>`;
+        return;
+      }
+      if (tried.has(combo)) {
+        log.innerHTML += `🌀 Already tried: ${combo}<br>`;
+        return;
+      }
+      tried.add(combo);
+      if (solutions.has(combo)) {
+        log.innerHTML += `✅ Correct! ${combo}<br>`;
+        solutions.delete(combo);
+      } else {
+        log.innerHTML += `❌ Incorrect: ${combo}<br>`;
+      }
+      if (solutions.size === 0) {
+        log.innerHTML += `<hr>🎉 Round Over! No more valid combinations.<br>`;
+      }
+    }
+
+    function startNewGame() {
+      Object.keys(board).forEach(k => delete board[k]);
+      solutions.clear();
+      tried.clear();
+      document.getElementById('log').innerHTML = '';
+      randomBoard();
+      displayBoard();
+      generateTarget();
+    }
+    
+
+    startNewGame();
+  </script>
+</body>
+</html>
