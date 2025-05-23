@@ -1,16 +1,17 @@
-# Triop Game
+# triop-game
 
 🧠 A solo math puzzle game inspired by *The Devil’s Plan* — built with Vanilla JavaScript and designed for quick mental sprints.
 
 ## 🎮 Gameplay
 
-- There are **12 tiles** labeled **A–L**.
+- There are **12 letter tiles** labeled **Q–V** (left-hand keyboard layout).
 - Each tile contains a math operator and number (e.g., `+3`, `*2`, `/4`, `-1`).
 - A target number is displayed at the top of the board.
-- The player types a **3-letter sequence** (e.g. `BFA`):
+- The player types or clicks a **3-letter sequence** (e.g. `qsa` or `QSA`):
   - The first tile gives the **starting number** (ignoring the operator).
   - The second and third apply their operator and number in order.
 - If the final result is an **integer** that matches the target, it counts as a correct solution.
+- The game tracks how many valid solutions are left.
 - The round ends when all possible correct combinations are exhausted.
 
 ## 🚀 Getting Started
@@ -45,6 +46,7 @@ Ideas for continued development:
 - Include hint system, timer, and score tracking
 - Mobile responsiveness & accessibility polish
 - Track stats or streaks locally (via `localStorage`)
+- Visual feedback for correct/incorrect guesses
 
 ## 🤖 For LLMs and Hackers
 
