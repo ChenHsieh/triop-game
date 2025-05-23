@@ -1,13 +1,10 @@
-# triop-game
-A solo math puzzle game inspired by The Devil’s Plan
-
-# Triop Game (a.k.a. HexaMath Duel)
+# Triop Game
 
 🧠 A solo math puzzle game inspired by *The Devil’s Plan* — built with Vanilla JavaScript and designed for quick mental sprints.
 
 ## 🎮 Gameplay
 
-- There are **12 hexagon tiles** labeled **A–L**.
+- There are **12 tiles** labeled **A–L**.
 - Each tile contains a math operator and number (e.g., `+3`, `*2`, `/4`, `-1`).
 - A target number is displayed at the top of the board.
 - The player types a **3-letter sequence** (e.g. `BFA`):
