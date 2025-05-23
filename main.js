@@ -34,10 +34,13 @@ function applyOps(a, b, c) {
   const n2 = parseInt(board[b].slice(1));
   const op3 = board[c][0];
   const n3 = parseInt(board[c].slice(1));
-  let result = v1;
-  result = eval(`result ${op2} ${n2}`);
-  result = eval(`result ${op3} ${n3}`);
-  return Number.isInteger(result) ? result : null;
+  try {
+    const expression = `${v1} ${op2} ${n2} ${op3} ${n3}`;
+    const result = Function('"use strict";return (' + expression + ')')();
+    return Number.isInteger(result) ? result : null;
+  } catch {
+    return null;
+  }
 }
 
 function generateTarget() {
@@ -81,11 +84,12 @@ function submitCombo() {
     return;
   }
   tried.add(lowerCombo);
+  const result = applyOps(...lowerCombo);
   if (solutions.has(lowerCombo)) {
-    log.innerHTML += `✅ Correct! ${combo}<br>`;
+    log.innerHTML += `✅ Correct! ${combo} = ${result}<br>`;
     solutions.delete(lowerCombo);
   } else {
-    log.innerHTML += `❌ Incorrect: ${combo}<br>`;
+    log.innerHTML += `❌ Incorrect: ${combo} = ${result}<br>`;
   }
   document.getElementById('remaining').textContent = solutions.size;
   if (solutions.size === 0) {
