@@ -9,8 +9,10 @@
 - A target number is displayed at the top of the board.
 - The player types or clicks a **3-letter sequence** (e.g. `qsa` or `QSA`):
   - The first tile gives the **starting number** (ignoring the operator).
-  - The second and third apply their operator and number in order.
+  - The second and third apply their operator and number **with correct PEMDAS precedence**.
 - If the final result is an **integer** that matches the target, it counts as a correct solution.
+- All results (integer or decimal) are displayed after each input.
+- Input auto-submits when 3 letters are entered.
 - The game tracks how many valid solutions are left.
 - The round ends when all possible correct combinations are exhausted.
 

@@ -29,6 +29,7 @@ function displayBoard() {
 }
 
 function applyOps(a, b, c) {
+  if (!board[a] || !board[b] || !board[c]) return null;
   const v1 = parseInt(board[a].slice(1));
   const op2 = board[b][0];
   const n2 = parseInt(board[b].slice(1));
@@ -85,11 +86,12 @@ function submitCombo() {
   }
   tried.add(lowerCombo);
   const result = applyOps(...lowerCombo);
+  const resultDisplay = result === null ? 'Invalid' : result.toFixed(2).replace(/\.00$/, '');
   if (solutions.has(lowerCombo)) {
-    log.innerHTML += `✅ Correct! ${combo} = ${result}<br>`;
+    log.innerHTML += `✅ Correct! ${combo} = ${resultDisplay}<br>`;
     solutions.delete(lowerCombo);
   } else {
-    log.innerHTML += `❌ Incorrect: ${combo} = ${result}<br>`;
+    log.innerHTML += `❌ Incorrect: ${combo} = ${resultDisplay}<br>`;
   }
   document.getElementById('remaining').textContent = solutions.size;
   if (solutions.size === 0) {
