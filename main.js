@@ -66,6 +66,8 @@ function submitCombo() {
   const combo = input.value.toUpperCase();
   const lowerCombo = combo.toLowerCase();
   const log = document.getElementById('log');
+  input.value = ''; // clear input after reading
+
   if (
     lowerCombo.length !== 3 ||
     new Set(lowerCombo).size !== 3 ||
@@ -99,18 +101,27 @@ function startNewGame() {
   randomBoard();
   displayBoard();
   generateTarget();
+  document.getElementById('sequence').focus();
 }
 
 // Init game on load
 window.onload = () => {
   startNewGame();
-  document.getElementById('sequence').addEventListener('change', submitCombo);
-  // Listen for key presses to append valid letters or submit
+  const input = document.getElementById('sequence');
+  input.addEventListener('change', submitCombo);
+  input.focus(); // focus input on load
+
   document.addEventListener('keydown', (e) => {
+    if (document.activeElement !== input) return;
     const key = e.key.toLowerCase();
     if (letters.includes(key)) {
-      const input = document.getElementById('sequence');
-      if (input.value.length < 3) input.value += key;
+      if (input.value.length < 3) {
+        input.value += key;
+        if (input.value.length === 3) {
+          submitCombo();
+        }
+      }
+      e.preventDefault();
     } else if (e.key === 'Enter') {
       submitCombo();
     }
