@@ -1,18 +1,24 @@
 /* Mode registry, shared clock, stats, and keyboard routing. */
 
-import { LETTERS } from './engine.js';
+import { LETTERS, setSeed, clearSeed } from './engine.js';
 import * as UI from './ui.js';
+import * as Daily from './daily.js';
 import classic from './modes/classic.js';
 import sprint from './modes/sprint.js';
 import ladder from './modes/ladder.js';
 import deduce from './modes/deduce.js';
 
-const MODES = [classic, sprint, ladder, deduce];
+// Ladder leads: the running total is always on screen and illegal moves are
+// greyed out, so it is the mode a newcomer can actually start with.
+const MODES = [ladder, classic, sprint, deduce];
+const DAILY_TAB = { id: 'daily', name: 'Daily' };
 const STATS_KEY = 'triop.stats.v2';
 const PREFS_KEY = 'triop.prefs.v1';
 
-let current = classic;
+let current = MODES[0];
 let level = 'normal';
+let daily = false;
+let dailyDay = 0;
 
 /* ---------- clock ---------- */
 
@@ -49,7 +55,7 @@ function loadPrefs() {
 }
 
 function savePrefs() {
-  try { localStorage.setItem(PREFS_KEY, JSON.stringify({ mode: current.id, level })); } catch { /* ignore */ }
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify({ mode: daily ? 'daily' : current.id, level })); } catch { /* ignore */ }
 }
 
 function renderStats() {
@@ -79,8 +85,20 @@ const host = {
     stats.solved += solved;
     saveStats(stats);
     renderStats();
+    if (daily) recordDaily();
   },
 };
+
+function recordDaily() {
+  if (Daily.loadResult(dailyDay)) return;      // only the first attempt counts
+  const sum = current.summary && current.summary();
+  if (!sum) return;
+  Daily.saveResult({
+    day: dailyDay, mode: current.id, modeName: current.name,
+    grid: sum.grid, detail: sum.detail, score: sum.score, won: sum.won,
+  });
+  renderShare();
+}
 
 MODES.forEach((m) => m.init(host));
 
@@ -88,25 +106,88 @@ MODES.forEach((m) => m.init(host));
 
 function newRound() {
   clock.reset();
+  // The seed stays live for the whole daily session: Sprint draws its next
+  // target mid-run, and that sequence has to match for everyone too.
+  if (daily) setSeed(Daily.seedFor(dailyDay, current.id));
+  else clearSeed();
   current.start();
   renderStats();
+  renderShare();
+}
+
+/* ---------- share card ---------- */
+
+function renderShare() {
+  const box = UI.dom.share;
+  box.innerHTML = '';
+  if (!daily) { box.hidden = true; return; }
+  box.hidden = false;
+
+  const done = Daily.loadResult(dailyDay);
+  if (!done) {
+    const note = document.createElement('p');
+    note.className = 'daily-note';
+    note.innerHTML = `Daily #${dailyDay} — <strong>${current.name}</strong>. ` +
+      'Everyone gets this exact board today. Your first result is the one that counts.';
+    box.appendChild(note);
+    return;
+  }
+
+  const card = document.createElement('div');
+  card.className = 'share-card';
+  const add = (tag, cls, text) => {
+    const node = document.createElement(tag);
+    node.className = cls;
+    node.textContent = text;
+    card.appendChild(node);
+    return node;
+  };
+  add('div', 'share-head', `TriOp #${done.day} · ${done.modeName}`);
+  add('pre', 'share-grid', done.grid);
+  add('div', 'share-detail', `${done.detail} · ${done.score} pts`);
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn btn-primary';
+  btn.textContent = 'Copy result';
+  btn.addEventListener('click', async () => {
+    const ok = await Daily.copy(Daily.shareText(done));
+    btn.textContent = ok ? 'Copied' : 'Press Ctrl+C to copy';
+    setTimeout(() => { btn.textContent = 'Copy result'; }, 2000);
+    btn.blur();
+  });
+  card.appendChild(btn);
+  box.appendChild(card);
 }
 
 function switchMode(id) {
-  const next = MODES.find((m) => m.id === id);
-  if (!next || next === current) return;
   clock.stop();
-  current = next;
+  if (id === 'daily') {
+    if (daily) return;                           // already on today's board
+    dailyDay = Daily.dayNumber();
+    const modeId = Daily.modeForDay(dailyDay, MODES.map((m) => m.id));
+    current = MODES.find((m) => m.id === modeId);
+    daily = true;
+    level = 'normal';                            // one difficulty, so scores compare
+    UI.dom.level.value = 'normal';
+  } else {
+    const next = MODES.find((m) => m.id === id);
+    if (!next || (next === current && !daily)) return;
+    current = next;
+    daily = false;
+  }
   savePrefs();
   paintChrome();
   newRound();
 }
 
 function paintChrome() {
-  UI.setTabs(MODES, current.id, switchMode);
-  UI.dom.blurb.innerHTML = current.blurb;
+  UI.setTabs([DAILY_TAB, ...MODES], daily ? 'daily' : current.id, switchMode);
+  UI.dom.blurb.innerHTML = daily
+    ? `Daily #${Daily.dayNumber()} — today it is <strong>${current.name}</strong>. ${current.blurb}`
+    : current.blurb;
   UI.setRules(current.rulesTitle, current.rules);
-  UI.showLevel(current.usesLevel !== false);
+  UI.showLevel(!daily && current.usesLevel !== false);
   document.body.dataset.mode = current.id;
 }
 
@@ -152,7 +233,15 @@ if (prefs.level && ['easy', 'normal', 'hard'].includes(prefs.level)) {
   UI.dom.level.value = level;
 }
 const startMode = MODES.find((m) => m.id === prefs.mode);
-if (startMode) current = startMode;
+if (prefs.mode === 'daily') {
+  daily = true;
+  dailyDay = Daily.dayNumber();
+  current = MODES.find((m) => m.id === Daily.modeForDay(dailyDay, MODES.map((m) => m.id)));
+  level = 'normal';
+  UI.dom.level.value = 'normal';
+} else if (startMode) {
+  current = startMode;
+}
 
 paintChrome();
 newRound();

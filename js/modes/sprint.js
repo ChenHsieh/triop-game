@@ -25,7 +25,7 @@ function pickTarget(exclude) {
   const options = [...s.byValue.entries()]
     .filter(([value, combos]) => combos.length >= band.minSolutions && Math.abs(value) <= 150 && value !== exclude);
   if (!options.length) return null;
-  const [value, combos] = options[Math.floor(Math.random() * options.length)];
+  const [value, combos] = E.pickFrom(options);
   return { value, combos };
 }
 
@@ -175,6 +175,16 @@ function render() {
     : `<h2 class="section-title">This target</h2><div class="chips"><span class="chip missed">${s.solutions.length} combos work — you need one</span></div>`);
 }
 
+function summary() {
+  if (!s.over) return null;
+  return {
+    grid: '⚡'.repeat(Math.min(s.solved, 12)) || '⬛',
+    detail: `${s.solved} target${s.solved === 1 ? '' : 's'} · ${s.misses} miss${s.misses === 1 ? '' : 'es'}`,
+    score: s.score,
+    won: s.solved > 0,
+  };
+}
+
 function action(id) {
   if (id === 'skip') skip();
   else if (id === 'new') host.restart();
@@ -204,5 +214,5 @@ export default {
     '<kbd>Space</kbd> skips a target for a bigger time penalty.',
   ],
   init(h) { host = h; },
-  start, pick, key, render, tick,
+  start, pick, key, render, tick, summary,
 };

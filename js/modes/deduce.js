@@ -103,12 +103,20 @@ function finish(won) {
   host.award({ score: s.score, solved: won ? 1 : 0, cleared: won });
 }
 
+// Colour alone cannot carry the feedback — green vs amber is the common
+// red-green failure case. Every cell also shows a glyph and a spoken label.
+const MARK_GLYPH = { hit: '✓', moved: '↔', off: '·' };
+const MARK_WORD = { hit: 'right tile, right slot', moved: 'right tile, wrong slot', off: 'not in the combo' };
+
 function gridHTML() {
   if (!s.guesses.length) return '<span class="empty">No guesses yet.</span>';
   return s.guesses.map((g) => {
-    const cells = [...g.combo].map((l, i) =>
-      `<span class="gcell ${g.marks[i]}"><em>${l.toUpperCase()}</em><small>${i === 0 ? s.tiles[l].num : E.face(s.tiles[l])}</small></span>`
-    ).join('');
+    const cells = [...g.combo].map((l, i) => {
+      const mark = g.marks[i];
+      return `<span class="gcell ${mark}" role="img" aria-label="${l.toUpperCase()}, ${MARK_WORD[mark]}">` +
+        `<i class="gmark" aria-hidden="true">${MARK_GLYPH[mark]}</i>` +
+        `<em>${l.toUpperCase()}</em><small>${i === 0 ? s.tiles[l].num : E.face(s.tiles[l])}</small></span>`;
+    }).join('');
     const arrow = g.delta === 0 ? '=' : g.delta > 0 ? '↑' : '↓';
     const tail = `<span class="gval">${E.fmt(g.value)} <b class="garrow">${arrow}</b></span>`;
     return `<div class="grow">${cells}${tail}</div>`;
@@ -148,6 +156,18 @@ function render() {
   UI.setPanel(`<h2 class="section-title">Guesses</h2><div class="grid">${gridHTML()}</div>`);
 }
 
+const EMOJI = { hit: '🟩', moved: '🟨', off: '⬛' };
+
+function summary() {
+  if (!s.over) return null;
+  return {
+    grid: s.guesses.map((g) => g.marks.map((m) => EMOJI[m]).join('')).join('\n'),
+    detail: s.won ? `${s.guesses.length}/${s.guesses.length + s.left}` : `X/${s.guesses.length + s.left}`,
+    score: s.score,
+    won: s.won,
+  };
+}
+
 function action(id) {
   if (id === 'submit') submit();
   else if (id === 'new') host.restart();
@@ -168,10 +188,10 @@ export default {
   rulesTitle: 'Deduce',
   rules: [
     'One three-tile combo is hidden. Build a guess and press <kbd>Enter</kbd>.',
-    '<strong>Green</strong> means right tile in the right slot; <strong>amber</strong> means the tile is in the combo but a different slot; grey means it is not in the combo at all.',
+'<strong>✓ green</strong> means right tile in the right slot; <strong>↔ amber</strong> means the tile is in the combo but a different slot; <strong>· grey</strong> means it is not in the combo at all.',
     'You also see your guess’s value and whether the hidden combo’s value is higher or lower — the arithmetic narrows it faster than the colours do.',
     'Tiles ruled out are crossed off the board automatically, so you never have to hold it all in your head.',
   ],
   init(h) { host = h; },
-  start, pick, key, render,
+  start, pick, key, render, summary,
 };

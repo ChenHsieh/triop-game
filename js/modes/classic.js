@@ -4,15 +4,19 @@ import * as E from '../engine.js';
 import * as UI from '../ui.js';
 
 /*
- * `required` is the real difficulty lever. Requiring every solution made Easy
- * the *most* work — a rich target has ~11 combos to hunt down, a sparse one has
- * 2. Measured median combos a scanning player examines before clearing:
- * easy 351, normal 800, hard 906.
+ * `required` is the real difficulty lever, not the size of the solution set —
+ * under "combos examined to clear", needing one more find dominates everything
+ * else. Requiring *all* of them originally made Easy the hardest setting, and a
+ * first fix left Normal and Hard tied (786 vs 867, inside the noise).
+ *
+ * What separates them is how many spares you get. Easy has ~11 solutions and
+ * needs 2 of them; Hard has exactly 3 and needs all 3. Measured median combos a
+ * scanning player examines before clearing: easy 200, normal 636, hard 1031.
  */
 const BANDS = {
-  easy:   { min: 7, max: 16, required: 3,        hints: 3, timeBonus: 200 },
-  normal: { min: 3, max: 6,  required: 3,        hints: 2, timeBonus: 300 },
-  hard:   { min: 1, max: 3,  required: Infinity, hints: 1, timeBonus: 450 },
+  easy:   { min: 8, max: 16, required: 2,        hints: 3, timeBonus: 200 },
+  normal: { min: 4, max: 8,  required: 3,        hints: 2, timeBonus: 300 },
+  hard:   { min: 3, max: 3,  required: Infinity, hints: 1, timeBonus: 450 },
 };
 const SCORE = { hit: 100, chainStep: 25, miss: 20, hint: 75, perfect: 250 };
 
@@ -103,7 +107,7 @@ function hint() {
   if (s.over || s.hintsLeft <= 0) return;
   const remaining = s.solutions.filter((x) => !s.found.has(x));
   if (!remaining.length) return;
-  const pickOne = remaining[Math.floor(Math.random() * remaining.length)];
+  const pickOne = E.pickFrom(remaining);
   s.hintsLeft -= 1;
   s.hintsUsed += 1;
   s.score -= SCORE.hint;
@@ -196,6 +200,16 @@ function render() {
   UI.setPanel(`<h2 class="section-title">Solutions <span class="pips">${pips}</span></h2><div class="chips">${chips}</div>`);
 }
 
+/** End-of-round result for the daily share card. */
+function summary() {
+  if (!s.over) return null;
+  const grid = '🟩'.repeat(s.found.size) + '⬛'.repeat(Math.max(0, s.need - s.found.size));
+  const bits = [`${s.found.size}/${s.need}`];
+  if (s.misses) bits.push(`${s.misses} miss${s.misses === 1 ? '' : 'es'}`);
+  if (s.hintsUsed) bits.push(`${s.hintsUsed} hint${s.hintsUsed === 1 ? '' : 's'}`);
+  return { grid, detail: bits.join(' · '), score: s.score, won: s.found.size >= s.need };
+}
+
 function action(id) {
   if (id === 'hint') hint();
   else if (id === 'reveal') reveal();
@@ -226,5 +240,5 @@ export default {
     'Misses cost points, so sweeping every combination is a losing strategy.',
   ],
   init(h) { host = h; },
-  start, pick, key, render,
+  start, pick, key, render, summary,
 };

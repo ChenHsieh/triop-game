@@ -1,5 +1,5 @@
 import { install } from './dom.mjs';
-const IDS = ['tabs','blurb','hud','prompt','slots','board','board-note','level','level-field','controls','panel','log','stats','rules'];
+const IDS = ['tabs','blurb','hud','prompt','slots','board','board-note','level','level-field','controls','share','panel','log','stats','rules'];
 const { store, doc } = install(IDS);
 store['level'].value = 'normal';
 
@@ -26,7 +26,8 @@ const check = (label, cond, extra = '') => {
 };
 
 console.log('\n=== tabs ===');
-check('four modes registered', tabs().length === 4, tabs().map((t) => t.textContent).join(','));
+check('daily + four modes registered', tabs().length === 5, tabs().map((t) => t.textContent).join(','));
+check('ladder leads the mode tabs', tabs()[1].textContent === 'Ladder', tabs()[1].textContent);
 
 /* ---------------- CLASSIC ---------------- */
 console.log('\n=== classic ===');
@@ -187,6 +188,67 @@ console.log('\n=== stats ===');
   const parsed = JSON.parse(raw);
   check('per-mode stats persisted for all four', Object.keys(parsed.modes).length === 4, Object.keys(parsed.modes).join(','));
   console.log('  stored:', raw);
+}
+
+/* ---------------- DAILY ---------------- */
+console.log('\n=== daily ===');
+{
+  const D = await import('../js/daily.js');
+  // day numbering and rollover
+  const d1 = D.dayNumber(new Date(2026, 7, 19, 23, 59));
+  const d2 = D.dayNumber(new Date(2026, 7, 20, 0, 1));
+  check('day 1 is the epoch date', d1 === 1, String(d1));
+  check('rolls over at local midnight', d2 === 2, `${d1} -> ${d2}`);
+  check('rotation covers every mode', new Set([1,2,3,4].map((d) => D.modeForDay(d, ['ladder','classic','sprint','deduce']))).size === 4);
+  check('seed is stable per day+mode', D.seedFor(7,'ladder') === D.seedFor(7,'ladder') && D.seedFor(7,'ladder') !== D.seedFor(8,'ladder'));
+
+  // the board must be identical for two independent players on the same day
+  const day = D.dayNumber();
+  const modeId = D.modeForDay(day, ['ladder','classic','sprint','deduce']);
+  const seed = D.seedFor(day, modeId);
+  const boardFor = () => { E.setSeed(seed); const t = E.makeTiles(); E.clearSeed(); return JSON.stringify(t); };
+  check('same day -> byte-identical board', boardFor() === boardFor(), modeId);
+  E.setSeed(D.seedFor(day + 1, modeId)); const tomorrow = JSON.stringify(E.makeTiles()); E.clearSeed();
+  check('next day -> different board', boardFor() !== tomorrow);
+
+  // play the daily through the real UI
+  const dailyTab = tabs()[0];
+  dailyTab.fire('click');
+  check('daily tab hides the difficulty selector', store['level-field'].hidden === true);
+  check('daily announces the board before you finish', !!store['share'].querySelector('.daily-note'), '');
+  check('daily uses the rotated mode', store['blurb'].innerHTML.includes('today it is'), '');
+
+  // finish it: the daily rotation lands on one mode, so drive whichever it is
+  const before = JSON.stringify(store['board'].children.map((b) => b.innerHTML));
+  ctl('New') && ctl('New').fire('click');
+  const after = JSON.stringify(store['board'].children.map((b) => b.innerHTML));
+  check('replaying the daily gives the same board', before === after, '');
+
+  // force a completion through whichever mode is live, then check the card
+  const give = ctl('Give up') || ctl('Reveal') ;
+  if (give) { give.fire('click'); }
+  else {
+    // sprint or deduce: burn the budget
+    const L = tiles(); let guard = 0;
+    while (guard++ < 40 && !store['share'].querySelector('.share-card')) { key(L[0]); key(L[1]); key(L[2]); key('Enter'); }
+  }
+  const card = store['share'].querySelector('.share-card');
+  check('share card appears once the daily is done', !!card, '');
+  const stored = JSON.parse(localStorage.getItem('triop.daily.v1'));
+  check('daily result stored for today', stored && stored.day === day, JSON.stringify(stored));
+  const text = D.shareText(stored);
+  // A spoiler would be a literal combo, which the game always renders uppercase.
+  check('share text leaks no combo', !/[QWERASDFZXCV]{3}/.test(text), text.replace(/\n/g, ' | '));
+  check('share text carries day, mode and score', text.includes(`#${day}`) && text.includes(stored.modeName) && text.includes(`${stored.score} pts`));
+  console.log('  share text:'); console.log(text.split('\n').map((l) => '    ' + l).join('\n'));
+
+  // a second completion must not overwrite the first
+  const firstScore = stored.score;
+  ctl('New') && ctl('New').fire('click');
+  const give2 = ctl('Give up') || ctl('Reveal');
+  if (give2) give2.fire('click');
+  const after2 = localStorage.getItem('triop.daily.v1');
+  check('replaying does not overwrite the recorded result', after2 === JSON.stringify(stored), `mode=${stored.mode} score=${firstScore}`);
 }
 
 console.log(fails === 0 ? '\nALL CHECKS PASSED' : `\n${fails} CHECK(S) FAILED`);

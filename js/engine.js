@@ -5,6 +5,27 @@ export const OPS = ['+', '-', '*', '/'];
 export const SYMBOL = { '+': '+', '-': '−', '*': '×', '/': '÷' };
 const EPS = 1e-9;
 
+/*
+ * Every draw in the game goes through random(). With a seed set, generation is
+ * reproducible, which is what makes a daily board the same board for everyone.
+ * mulberry32 — small, fast, good enough for puzzle boards.
+ */
+let seeded = null;
+
+export function setSeed(seed) {
+  let a = seed >>> 0;
+  seeded = () => {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export const clearSeed = () => { seeded = null; };
+export const random = () => (seeded || Math.random)();
+export const pickFrom = (arr) => arr[Math.floor(random() * arr.length)];
+
 export function apply(a, op, b) {
   switch (op) {
     case '+': return a + b;
@@ -44,13 +65,13 @@ export const face = (tile) => SYMBOL[tile.op] + tile.num;
 
 export function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
 }
 
-const randInt = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
+const randInt = (lo, hi) => lo + Math.floor(random() * (hi - lo + 1));
 
 /**
  * Three tiles per operator, no duplicate op+number pair, and no identity
@@ -116,7 +137,7 @@ export function comboPuzzle({ min, max, maxAbs = 150, attempts = 200 }) {
       }
     }
     if (candidates.length) {
-      const pick = candidates[Math.floor(Math.random() * candidates.length)];
+      const pick = pickFrom(candidates);
       return { tiles, target: pick.value, solutions: pick.combos };
     }
   }
@@ -163,7 +184,7 @@ export function ladderPuzzle({ par, maxAbs = 120, attempts = 60 }) {
       candidates.push({ value, path: info.path });
     }
     if (candidates.length) {
-      const pick = candidates[Math.floor(Math.random() * candidates.length)];
+      const pick = pickFrom(candidates);
       return { tiles, start, target: pick.value, par, path: pick.path };
     }
   }
@@ -188,7 +209,7 @@ export function deducePuzzle({ attempts = 80 }) {
       if (combos.length >= 2) pool.push(...combos.map((combo) => ({ combo, value })));
     }
     if (pool.length) {
-      const pick = pool[Math.floor(Math.random() * pool.length)];
+      const pick = pickFrom(pool);
       return { tiles, secret: pick.combo, value: pick.value };
     }
   }

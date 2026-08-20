@@ -177,6 +177,18 @@ function render() {
   );
 }
 
+function summary() {
+  if (!s.over) return null;
+  if (!s.won) return { grid: '⬛'.repeat(s.par), detail: 'gave up', score: 0, won: false };
+  const over = Math.max(0, s.trail.length - s.par);
+  return {
+    grid: '🟩'.repeat(Math.min(s.trail.length, s.par)) + '🟨'.repeat(Math.min(over, 6)),
+    detail: `${s.trail.length}/${s.par} tiles` + (s.hintsUsed ? ` · ${s.hintsUsed} hint` : '') + (over === 0 ? ' · on par' : ''),
+    score: s.score,
+    won: true,
+  };
+}
+
 function action(id) {
   if (id === 'undo') undo();
   else if (id === 'reset') reset();
@@ -205,5 +217,5 @@ export default {
     'Par is the fewest tiles that reach the target. Landing on par scores best; going over costs points, not the round.',
   ],
   init(h) { host = h; },
-  start, pick, key, render,
+  start, pick, key, render, summary,
 };

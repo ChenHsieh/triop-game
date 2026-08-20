@@ -15,6 +15,7 @@ export const dom = {
   level: el('level'),
   levelField: el('level-field'),
   controls: el('controls'),
+  share: el('share'),
   panel: el('panel'),
   log: el('log'),
   stats: el('stats'),
