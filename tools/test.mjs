@@ -1,5 +1,5 @@
 import { install } from './dom.mjs';
-const IDS = ['tabs','blurb','hud','prompt','slots','board','board-note','level','level-field','controls','share','panel','log','stats','rules'];
+const IDS = ['tabs','blurb','hud','prompt','slots','board','board-note','level','level-field','controls','share','panel','log','stats','transfer','rules'];
 const { store, doc } = install(IDS);
 store['level'].value = 'normal';
 
@@ -336,6 +336,54 @@ console.log('\n=== daily ===');
   check('no history means no streak', D.streak(10, {}) === 0);
   check('past days survive a new day being written', Object.keys(D.loadHistory()).length >= 1,
     Object.keys(D.loadHistory()).join(','));
+}
+
+/* ---------------- restore codes ---------------- */
+console.log('\n=== restore codes ===');
+{
+  const D = await import('../js/daily.js');
+  const mk = (n) => {
+    const h = {};
+    for (let d = 1; d <= n; d++) h[d] = { day: d, mode: 'ladder', won: d % 9 !== 0, score: 500,
+      detail: '4/5 tiles', outcome: d % 9 ? 'on par' : 'gave up' };
+    return h;
+  };
+
+  const code = D.exportCode(mk(30), { modes: { ladder: { best: 750, plays: 12, cleared: 9 } }, solved: 140 });
+  check('a 30-day code is short enough to paste', code.length < 800, `${code.length} chars`);
+  check('code is prefixed and checksummed', /^TRIOP1\.[A-Za-z0-9_-]+\.[a-z0-9]+$/.test(code), code.slice(0, 30) + '…');
+  check('code leaks no combo', !/[QWERASDFZXCV]{3}/.test(code.split('.')[0]), '');
+
+  // round trip into a clean store
+  localStorage.setItem('triop.daily.v2', JSON.stringify({ days: {} }));
+  const r1 = D.importCode(code);
+  check('round trip restores every day', r1.ok && r1.added === 30, JSON.stringify({ added: r1.added, kept: r1.kept }));
+  check('streak survives the round trip', D.streak(30) === 3, String(D.streak(30)));
+  check('per-mode records travel with it', r1.stats && r1.stats.modes.ladder.best === 750, '');
+
+  // idempotence
+  const r2 = D.importCode(code);
+  check('re-importing changes nothing', r2.ok && r2.added === 0 && r2.kept === 30, JSON.stringify({ added: r2.added, kept: r2.kept }));
+
+  // a code must never clobber a day you actually played here
+  const local = D.loadHistory();
+  local[5] = { day: 5, mode: 'deduce', won: false, score: 0, detail: 'X/6', outcome: 'played here' };
+  localStorage.setItem('triop.daily.v2', JSON.stringify({ days: local }));
+  D.importCode(code);
+  check('a local day is never overwritten by a code', D.loadResult(5).outcome === 'played here', D.loadResult(5).outcome);
+
+  // rejection paths
+  const [pfx, body, sum] = code.split('.');
+  check('a damaged body is rejected', !D.importCode([pfx, body.slice(0, -8), sum].join('.')).ok);
+  check('a single flipped character is rejected', !D.importCode([pfx, body.slice(0, 10) + 'X' + body.slice(11), sum].join('.')).ok);
+  check('a truncated paste is rejected', !D.importCode(code.slice(0, 60)).ok);
+  check('unrelated text is rejected', !D.importCode('hello world').ok);
+  check('whitespace and line breaks survive a paste', D.importCode('  ' + code.slice(0, 40) + '\n' + code.slice(40) + ' ').ok);
+
+  // the UI is wired
+  check('transfer panel rendered', !!store['transfer'].querySelector('.transfer-field'), '');
+  const buttons = store['transfer'].querySelectorAll('btn');
+  check('copy and restore controls exist', store['transfer'].children.length >= 4, `${store['transfer'].children.length} nodes`);
 }
 
 console.log(fails === 0 ? '\nALL CHECKS PASSED' : `\n${fails} CHECK(S) FAILED`);

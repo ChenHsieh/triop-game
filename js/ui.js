@@ -19,6 +19,7 @@ export const dom = {
   panel: el('panel'),
   log: el('log'),
   stats: el('stats'),
+  transfer: el('transfer'),
   rules: el('rules'),
 };
 

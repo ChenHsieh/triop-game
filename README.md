@@ -27,6 +27,15 @@ https://chenhsieh.github.io/triop-game/
 
 The board is generated from a seeded PRNG keyed on the day and mode, so it is reproducible without a server — there is no backend, and nothing leaves your browser.
 
+### Moving your streak to another device
+
+Your history lives in `localStorage`, so it does not follow you to a new browser and it goes away if you clear your data. **Move your progress** under the stats gives you a restore code: your whole daily history and your per-mode records as one string. Paste it into another device and it merges in.
+
+Still no account and no server — the code only goes where you put it. A 30-day history is about 600 characters; a full 90-day one is about 1700. Two rules it holds to:
+
+- **A day you actually played here is never overwritten by a code.** Importing merges; it does not replace.
+- **A damaged or partial paste is rejected, not half-imported.** The code carries a checksum, so a single flipped character fails cleanly.
+
 ## 🎮 Modes
 
 ### Ladder — walk the running total
@@ -227,6 +236,7 @@ bounded history and the v1 single-result store migrates into it on first read.
 
 - A guided first run for players who have never seen the board
 - Replaying past dailies unranked, which the current one-attempt rule does not allow for
+- Aggregate "how did everyone do today" — worth a small backend once enough people are playing, but a distribution rather than a leaderboard, which is forgeable when the score is computed client-side
 - Alternate tile layouts (triangle, honeycomb)
 - A two-player pass-and-play race on one board
 

@@ -210,6 +210,94 @@ setInterval(() => {
   else if (clockRunning) UI.setHudValue('Time', clock.label());
 }, 250);
 
+/* ---------- moving progress between devices ---------- */
+
+/** Merge restored records by taking the better of each — importing is idempotent. */
+function mergeStats(incoming) {
+  if (!incoming) return;
+  const stats = loadStats();
+  Object.entries(incoming.modes || {}).forEach(([id, v]) => {
+    const mine = stats.modes[id] || { best: 0, plays: 0, cleared: 0 };
+    stats.modes[id] = {
+      best: Math.max(mine.best, v.best || 0),
+      plays: Math.max(mine.plays, v.plays || 0),
+      cleared: Math.max(mine.cleared, v.cleared || 0),
+    };
+  });
+  stats.solved = Math.max(stats.solved, incoming.solved || 0);
+  saveStats(stats);
+}
+
+function renderTransfer() {
+  const box = UI.dom.transfer;
+  box.innerHTML = '';
+
+  const summary = document.createElement('summary');
+  summary.textContent = 'Move your progress to another device';
+  box.appendChild(summary);
+
+  const blurb = document.createElement('p');
+  blurb.className = 'transfer-note';
+  blurb.textContent =
+    'Your streak lives in this browser, so it does not follow you to another device and it '
+    + 'goes away if you clear your data. A restore code is all of it as one string. There is '
+    + 'no account and no server — the code only goes where you put it.';
+  box.appendChild(blurb);
+
+  const status = document.createElement('p');
+  status.className = 'transfer-status';
+
+  const copyBtn = document.createElement('button');
+  copyBtn.type = 'button';
+  copyBtn.className = 'btn btn-primary';
+  copyBtn.textContent = 'Copy my restore code';
+  copyBtn.addEventListener('click', async () => {
+    const history = Daily.loadHistory();
+    if (!Object.keys(history).length) {
+      status.textContent = 'Nothing to copy yet — play a daily first.';
+      return;
+    }
+    const code = Daily.exportCode(history, loadStats());
+    const ok = await Daily.copy(code);
+    status.textContent = ok
+      ? `Copied — ${Object.keys(history).length} day(s), ${code.length} characters.`
+      : 'Could not reach the clipboard. Select the code below and copy it by hand.';
+    field.value = code;
+    copyBtn.blur();
+  });
+
+  const field = document.createElement('textarea');
+  field.className = 'transfer-field';
+  field.setAttribute('rows', '3');
+  field.setAttribute('placeholder', 'Paste a restore code here');
+  field.setAttribute('aria-label', 'Restore code');
+
+  const restoreBtn = document.createElement('button');
+  restoreBtn.type = 'button';
+  restoreBtn.className = 'btn';
+  restoreBtn.textContent = 'Restore from code';
+  restoreBtn.addEventListener('click', () => {
+    const result = Daily.importCode(field.value);
+    if (!result.ok) { status.textContent = result.error; return; }
+    mergeStats(result.stats);
+    status.textContent = result.added
+      ? `Restored ${result.added} day(s). ${result.kept} you already had were left alone.`
+      : `Nothing new — all ${result.kept} day(s) in that code were already here.`;
+    renderStats();
+    renderShare();
+    restoreBtn.blur();
+  });
+
+  const row = document.createElement('div');
+  row.className = 'transfer-row';
+  row.appendChild(copyBtn);
+  row.appendChild(restoreBtn);
+
+  box.appendChild(row);
+  box.appendChild(field);
+  box.appendChild(status);
+}
+
 /*
  * Test hook. The harness cannot wait out a 105-second sprint, so it advances the
  * active mode's clock directly. Exposed deliberately: without it the run-length
@@ -263,4 +351,5 @@ if (prefs.mode === 'daily') {
 }
 
 paintChrome();
+renderTransfer();
 newRound();

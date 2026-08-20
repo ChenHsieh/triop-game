@@ -105,3 +105,135 @@ export async function copy(text) {
     return ok;
   } catch { return false; }
 }
+
+/* ---------- restore codes ----------
+ * The daily history lives in localStorage, so it dies when you switch device or
+ * clear the browser. A restore code is the whole of it as one paste-able string:
+ * no account, no server, and the promise that nothing leaves your browser stays
+ * literally true — the string only goes where you put it.
+ *
+ * The mode list below is part of the code format. Append only: reordering it
+ * would silently reinterpret every code already in circulation.
+ */
+const CODE_PREFIX = 'TRIOP1';
+const CODE_MODES = ['ladder', 'classic', 'sprint', 'deduce'];
+
+const toB64 = (text) => {
+  const bytes = new TextEncoder().encode(text);
+  let bin = '';
+  bytes.forEach((b) => { bin += String.fromCharCode(b); });
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
+
+const fromB64 = (b64) => {
+  const bin = atob(b64.replace(/-/g, '+').replace(/_/g, '/'));
+  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+};
+
+/** FNV-1a, so a truncated or mistyped paste is rejected instead of half-imported. */
+function checksum(text) {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0).toString(36);
+}
+
+/*
+ * The payload is a compact text format rather than JSON: repeated `detail` and
+ * `outcome` strings go in a table and rows reference them by index, and numbers
+ * are base-36. Straight JSON produced a 4172-character code for a full 90-day
+ * history, which is not something anyone will paste.
+ */
+function encodePayload(history, stats) {
+  const table = [];
+  const idx = (str) => {
+    const v = str || '';
+    const at = table.indexOf(v);
+    return at === -1 ? table.push(v) - 1 : at;
+  };
+  const rows = Object.keys(history).map(Number).sort((a, b) => a - b).map((d) => {
+    const r = history[d];
+    return [
+      d.toString(36),
+      Math.max(0, CODE_MODES.indexOf(r.mode)),
+      r.won ? 1 : 0,
+      (Math.max(0, Math.round(r.score) || 0)).toString(36),
+      idx(r.detail),
+      idx(r.outcome),
+    ].join(',');
+  });
+  const statLine = stats
+    ? Object.entries(stats.modes || {}).map(([m, v]) => `${m}:${v.best || 0}:${v.plays || 0}:${v.cleared || 0}`).join('|')
+      + `~${stats.solved || 0}`
+    : '';
+  return ['1', table.join('\u001f'), rows.join(';'), statLine].join('\n');
+}
+
+function decodePayload(text) {
+  const [version, tableLine, rowLine, statLine] = String(text).split('\n');
+  if (version !== '1') return null;
+  const table = tableLine ? tableLine.split('\u001f') : [];
+  const rows = (rowLine ? rowLine.split(';') : []).filter(Boolean).map((row) => {
+    const [d, m, w, sc, di, oi] = row.split(',');
+    return {
+      day: parseInt(d, 36),
+      mode: CODE_MODES[Number(m)] || 'classic',
+      won: w === '1',
+      score: parseInt(sc, 36) || 0,
+      detail: table[Number(di)] || '',
+      outcome: table[Number(oi)] || '',
+    };
+  });
+  let stats = null;
+  if (statLine) {
+    const [modePart, solved] = statLine.split('~');
+    const modes = {};
+    modePart.split('|').filter(Boolean).forEach((entry) => {
+      const [m, best, plays, cleared] = entry.split(':');
+      modes[m] = { best: Number(best) || 0, plays: Number(plays) || 0, cleared: Number(cleared) || 0 };
+    });
+    stats = { modes, solved: Number(solved) || 0 };
+  }
+  return { rows, stats };
+}
+
+export function exportCode(history = loadHistory(), stats = null) {
+  const body = toB64(encodePayload(history, stats));
+  return `${CODE_PREFIX}.${body}.${checksum(body)}`;
+}
+
+/**
+ * Merge a code into local history. A day already recorded here is never
+ * overwritten — you cannot lose a day you actually played by pasting a code.
+ */
+export function importCode(code) {
+  const cleaned = String(code || '').trim().replace(/\s+/g, '');
+  const parts = cleaned.split('.');
+  if (parts.length !== 3 || parts[0] !== CODE_PREFIX) {
+    return { ok: false, error: 'That is not a TriOp restore code.' };
+  }
+  const [, body, sum] = parts;
+  if (checksum(body) !== sum) {
+    return { ok: false, error: 'That code looks incomplete — copy the whole thing.' };
+  }
+  let parsed;
+  try { parsed = decodePayload(fromB64(body)); } catch { return { ok: false, error: 'That code could not be read.' }; }
+  if (!parsed) return { ok: false, error: 'That code could not be read.' };
+
+  const history = loadHistory();
+  let added = 0, kept = 0;
+  for (const row of parsed.rows) {
+    if (!Number.isFinite(row.day) || row.day < 1) continue;
+    if (history[row.day]) { kept += 1; continue; }
+    history[row.day] = {
+      day: row.day, mode: row.mode, modeName: row.mode[0].toUpperCase() + row.mode.slice(1),
+      grid: '', detail: row.detail, outcome: row.outcome || (row.won ? 'solved' : 'not solved'),
+      score: row.score, won: row.won, restored: true,
+    };
+    added += 1;
+  }
+  const days = Object.keys(history).map(Number).sort((a, b) => b - a).slice(0, KEEP_DAYS);
+  const trimmed = {};
+  days.forEach((d) => { trimmed[d] = history[d]; });
+  try { localStorage.setItem(STORE_KEY, JSON.stringify({ days: trimmed })); } catch { /* private mode */ }
+  return { ok: true, added, kept, stats: parsed.stats };
+}
