@@ -116,7 +116,10 @@ for (const lv of ['easy', 'normal', 'hard']) {
     }
     frontier = next;
   }
-  check(`${lv}: a par-${par} route exists`, !!found && found.length === par, found ? found.join('') : 'none');
+  // Par must be beatable by exactly one tile: a par taken straight from an
+  // optimal solver can never be beaten, which is the opposite of golf.
+  check(`${lv}: a route to the target exists`, !!found, found ? found.join('') : 'none');
+  check(`${lv}: par ${par} is beatable by exactly one tile`, found.length === par - 1, `shortest is ${found.length}`);
   // an illegal tile must be refused
   const illegal = L.find((l) => E.wholeOrNull(E.apply(startVal, opOf(l), tm[l].num)) === null);
   if (illegal) {
@@ -125,7 +128,7 @@ for (const lv of ['easy', 'normal', 'hard']) {
   }
   found.forEach(key);
   check(`${lv}: reaching target ends the ladder`, hud()[0].includes(String(target)), hud()[0]);
-  check(`${lv}: on-par run scores`, ctl('New ladder') && true);
+  check(`${lv}: the shortest line is named as beating par`, feed(1)[0].includes('perfect line'), feed(1)[0]);
   console.log('  ', lv, 'feed:', feed(1));
 }
 
@@ -139,6 +142,8 @@ gotoMode('Deduce'); setLevel('normal');
   // wrong guess first
   key(L[0]); key(L[1]); key(L[2]); key('Enter');
   check('a guess is consumed', num(hud()[1]) === guessesLeft0 - 1, hud()[1]);
+  const stillPossible = () => Number(hud()[2].split('|')[2]);
+  check('candidate counter is live and below the full space', stillPossible() > 0 && stillPossible() < 1320, `${stillPossible()} of 1320`);
   check('guess row rendered', store['panel'].innerHTML.includes('gcell'));
   // brute force the secret using only the feedback channel
   const marksOf = () => {
@@ -151,12 +156,42 @@ gotoMode('Deduce'); setLevel('normal');
   for (const a of L) for (const b of L) for (const c of L) {
     if (a === b || b === c || a === c) continue;
     if (num(hud()[1]) <= 0) break outer;
+    const beforeN = stillPossible();
     key(a); key(b); key(c); key('Enter');
     if (marksOf().every((m) => m === 'hit')) { solved = true; break outer; }
+    if (stillPossible() > beforeN) { check('candidate count never grows', false, `${beforeN} -> ${stillPossible()}`); break outer; }
   }
   check('duplicate guesses do not jam the input', num(hud()[1]) === 0 || solved, `left=${num(hud()[1])} solved=${solved}`);
   check('losing reveals the secret', solved || store['hud'].children[0].innerHTML.match(/[A-Z]{3}/) !== null, hud()[0]);
   console.log('  feed:', feed(1));
+}
+
+/* ---------------- deduce: the candidate counter must never lie ---------------- */
+console.log('\n=== deduce candidate invariant ===');
+{
+  let minSeen = Infinity, rounds = 0, monotone = true, everZero = false;
+  for (let r = 0; r < 6; r++) {
+    gotoMode('Deduce'); setLevel('normal');
+    const L = tiles();
+    const count = () => Number(hud()[2].split('|')[2]);
+    let prev = count();
+    rounds++;
+    for (let g = 0; g < 5; g++) {
+      // a random distinct triple
+      const pick = E.shuffle(L.slice()).slice(0, 3);
+      pick.forEach(key); key('Enter');
+      const now = count();
+      if (Number.isNaN(now)) break;             // round ended
+      if (now > prev) monotone = false;
+      if (now === 0) everZero = true;
+      minSeen = Math.min(minSeen, now);
+      prev = now;
+    }
+  }
+  // If the secret ever fell out of the set the count would reach zero while the
+  // round was still live — the set always contains at least the true answer.
+  check('candidate count never reaches zero', !everZero, `min seen ${minSeen} over ${rounds} rounds`);
+  check('candidate count never grows', monotone, '');
 }
 
 /* ---------------- sprint run-out ---------------- */
@@ -239,7 +274,8 @@ console.log('\n=== daily ===');
   const text = D.shareText(stored);
   // A spoiler would be a literal combo, which the game always renders uppercase.
   check('share text leaks no combo', !/[QWERASDFZXCV]{3}/.test(text), text.replace(/\n/g, ' | '));
-  check('share text carries day, mode and score', text.includes(`#${day}`) && text.includes(stored.modeName) && text.includes(`${stored.score} pts`));
+  check('share text carries day, mode and outcome', text.includes(`#${day}`) && text.includes(stored.modeName) && text.includes(stored.outcome));
+  check('share text no longer carries points as a second number', !text.includes('pts'), text.replace(/\n/g, ' | '));
   console.log('  share text:'); console.log(text.split('\n').map((l) => '    ' + l).join('\n'));
 
   // a second completion must not overwrite the first

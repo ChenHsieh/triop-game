@@ -28,7 +28,9 @@ The board is generated from a seeded PRNG keyed on the day and mode, so it is re
 ## 🎮 Modes
 
 ### Ladder — walk the running total
-The gentlest way in, and the default. You start on a number and climb to the target one tile at a time, left to right — no precedence to track, and **the running total is always on screen**. Every step must stay a whole number, and tiles that would break that are greyed out, so every move you can see is a legal move. Each tile is usable once; undo is free. Par is the fewest tiles that reach the target, computed by breadth-first search when the puzzle is built.
+The gentlest way in, and the default. You start on a number and climb to the target one tile at a time, left to right — no precedence to track, and **the running total is always on screen**. Every step must stay a whole number, and tiles that would break that are greyed out, so every move you can see is a legal move. Each tile is usable once; undo is free.
+
+Par is **one tile more than the shortest possible route**, so par is a good line and the shortest line beats it for a bonus. A par taken straight from the solver could never be beaten, which is the opposite of how par works in golf.
 
 ### Classic — hunt down the combos
 Pick three different tiles. Tile 1 supplies the starting number (its operator is ignored, and the board strikes it out so you can see that); tiles 2 and 3 apply their operator under normal precedence, with the implied parentheses shown live. Clear the board by finding the required number of combos that land on the target. Easy gives you plenty of spares — around eleven solutions, and you need two. Hard gives you exactly three and wants all three. Misses cost points, so sweeping all 1320 combinations loses.
@@ -37,7 +39,7 @@ Pick three different tiles. Tile 1 supplies the starting number (its operator is
 The board never changes for the whole run, so you learn it as you go. Each target needs only **one** combo. A hit adds seconds and raises a chain multiplier; a miss costs seconds and resets it. <kbd>Space</kbd> skips a target for a bigger penalty. 90s / 60s / 45s by difficulty.
 
 ### Deduce — narrow down a hidden combo
-One three-tile combo is hidden. Guess, and get **✓ green** (right tile, right slot), **↔ amber** (right tile, wrong slot), **· grey** (not in the combo) — plus your guess's value and whether the hidden combo's value is higher or lower. Every cell carries a glyph and a spoken label as well as a colour, since green-versus-amber is exactly the case red-green colour blindness fails on. Tiles you have ruled out are crossed off the board automatically. 8 / 6 / 5 guesses by difficulty.
+One three-tile combo is hidden. Guess, and get **✓ green** (right tile, right slot), **↔ amber** (right tile, wrong slot), **· grey** (not in the combo) — plus your guess's value and whether the hidden combo's value is higher or lower. Every cell carries a glyph and a spoken label as well as a colour, since green-versus-amber is exactly the case red-green colour blindness fails on. Tiles you have ruled out are crossed off the board automatically, and on Easy and Normal the status bar counts how many combos still fit every clue you have — so you can watch the space close instead of guessing blind. 8 / 6 / 5 guesses by difficulty.
 
 ## 🎯 Difficulty
 
@@ -130,6 +132,40 @@ node calibrate.mjs   # difficulty measurement — takes a few minutes
 
 A mode is an object with `start / pick / key / render` (plus optional `tick`) and some copy. Adding a fifth is a new file in `js/modes/` and one line in `main.js`.
 
+## 🧠 Design decisions worth defending
+
+Three calls where two reasonable designs exist and the game picks one on purpose.
+
+**Classic has a fixed price list; Sprint has a chain multiplier. Not both, in either.**
+A solution in Classic is always +100 and a miss is always −20, so "is this guess worth
+trying" is answerable at the moment you decide it. Classic used to *also* carry a chain
+bonus, which makes the same guess worth wildly different amounts depending on when it
+lands and quietly deletes that calculation. Sprint keeps its chain, because Sprint's
+question is "can I keep the run going" rather than "what is this worth" — the chain is the
+thing being played there, not noise over a price list.
+
+**Par is beatable.** Ladder's par is the shortest route plus one. Deriving par straight
+from an optimal solver means par *is* perfect play, so nobody ever beats it and the mode
+has no ceiling to chase.
+
+**Difficulty stays a menu.** An earlier plan was to pick the level automatically from
+recorded performance. Rejected: a system that scales the numbers against a player
+invisibly makes their model of the game false, and difficulty presets are the standard
+place to put guidance settings — which is exactly how they are used here (move previews on
+Easy Ladder, the candidate counter on Easy and Normal Deduce).
+
+### Rejected, with the measurement
+
+**Greying out moves that strand you.** On a par-5 Ladder board, 52 of 100 random
+continuations reach a state with no route to the target — so marking those moves before
+they are taken looked like the single biggest improvement available. It is not affordable
+and, done cheaply, it lies. An honest check costs 81 ms median and 137 ms p90 on a
+server CPU, which is a visible hitch on a phone for something that runs on every render.
+Shortening the search horizon makes it cheap and wrong: on a par-3 board a horizon of 4
+flags 4.0 first moves as dead ends where a horizon of 5 flags 0.8 — it would grey out
+moves that actually win. The existing post-move warning stays, and now promotes the Undo
+button instead of scrolling past in the feed.
+
 ## 🛠️ Design notes
 
 - **Real evaluator, no `eval`.** `engine.js` walks precedence directly instead of building a string for `Function()`.
@@ -137,6 +173,8 @@ A mode is an object with `start / pick / key / render` (plus optional `tick`) an
 - **Non-integer feedback.** A miss shows its actual value and how far off it is, rather than reporting "Invalid".
 - **Curated targets.** Boards are rerolled until they can offer a target inside the difficulty band — a uniformly random target is degenerate most of the time.
 - **The clock never steals focus.** The 250 ms ticker updates a single HUD cell in place instead of redrawing the controls.
+- **No dead readouts.** Deduce showed a Score that sat at 0 for the entire round; a number that does not move when the player decides something is noise on the screen. It now shows how many combos still fit the clues, which moves on every guess.
+- **The share card carries one number.** Two numbers a reader cannot rank against each other stop a card working as shareable currency, so points stayed in the game and the card takes the outcome.
 - **Accessibility.** Tiles are real buttons with spoken labels and focus rings, the HUD and feed are `aria-live`, and animation respects `prefers-reduced-motion`.
 
 ## 🔭 Next steps

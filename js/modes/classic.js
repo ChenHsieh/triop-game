@@ -18,7 +18,15 @@ const BANDS = {
   normal: { min: 4, max: 8,  required: 3,        hints: 2, timeBonus: 300 },
   hard:   { min: 3, max: 3,  required: Infinity, hints: 1, timeBonus: 450 },
 };
-const SCORE = { hit: 100, chainStep: 25, miss: 20, hint: 75, perfect: 250 };
+/*
+ * A fixed price list, deliberately: a solution is +100 and a miss is −20, always.
+ * Classic previously also carried a chain multiplier, which is incompatible with
+ * that — with escalation the same guess is worth wildly different amounts
+ * depending on when it lands, so "is this guess worth trying" stops being
+ * computable at the moment you decide it. Sprint keeps its chain, because there
+ * the chain *is* the game.
+ */
+const SCORE = { hit: 100, miss: 20, hint: 75, perfect: 250 };
 
 let host = null;
 let s = {};
@@ -30,7 +38,7 @@ function start() {
     tiles: puzzle.tiles, target: puzzle.target, solutions: puzzle.solutions,
     need: Math.min(band.required, puzzle.solutions.length),
     found: new Set(), tried: new Set(), hinted: new Set(), combo: [],
-    score: 0, chain: 0, misses: 0, hintsUsed: 0, hintsLeft: band.hints,
+    score: 0, misses: 0, hintsUsed: 0, hintsLeft: band.hints,
     over: false, revealed: false, submitId: null,
   };
   UI.clearLog();
@@ -82,15 +90,11 @@ function submit() {
 
   if (whole === s.target) {
     s.found.add(combo);
-    s.chain += 1;
-    const points = SCORE.hit + SCORE.chainStep * (s.chain - 1);
-    s.score += points;
-    UI.say(`<span class="mono">${label}</span> = ${s.target} &nbsp;+${points}` +
-      (s.chain > 1 ? ` <span class="note">(chain ×${s.chain})</span>` : ''), 'ok');
+    s.score += SCORE.hit;
+    UI.say(`<span class="mono">${label}</span> = ${s.target} &nbsp;+${SCORE.hit}`, 'ok');
     UI.flashSlots('good');
     UI.pulseHud();
   } else {
-    s.chain = 0;
     s.misses += 1;
     s.score -= SCORE.miss;
     const off = whole === null ? '' : ` (off by ${Math.abs(whole - s.target)})`;
@@ -204,10 +208,15 @@ function render() {
 function summary() {
   if (!s.over) return null;
   const grid = '🟩'.repeat(s.found.size) + '⬛'.repeat(Math.max(0, s.need - s.found.size));
-  const bits = [`${s.found.size}/${s.need}`];
-  if (s.misses) bits.push(`${s.misses} miss${s.misses === 1 ? '' : 'es'}`);
-  if (s.hintsUsed) bits.push(`${s.hintsUsed} hint${s.hintsUsed === 1 ? '' : 's'}`);
-  return { grid, detail: bits.join(' · '), score: s.score, won: s.found.size >= s.need };
+  // One number and a named outcome — a card with two numbers is not a currency.
+  const clean = s.misses === 0 && s.hintsUsed === 0;
+  return {
+    grid,
+    detail: `${s.found.size}/${s.need}`,
+    outcome: s.found.size < s.need ? 'gave up' : clean ? 'flawless' : 'cleared',
+    score: s.score,
+    won: s.found.size >= s.need,
+  };
 }
 
 function action(id) {

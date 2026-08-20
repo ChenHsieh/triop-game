@@ -14,6 +14,11 @@ const BANDS = {
   normal: { minSolutions: 8,  seconds: 70, reward: 3, penalty: 5, skip: 8 },
   hard:   { minSolutions: 5,  seconds: 55, reward: 2, penalty: 6, skip: 10 },
 };
+/*
+ * Sprint keeps the chain multiplier that Classic gives up. Here the uncertainty
+ * is performative — "can I keep the run going" — rather than analytic, so the
+ * chain is the thing being played, not noise over a price list.
+ */
 const BASE = 100;
 const CHAIN_CAP = 5;
 
@@ -179,7 +184,8 @@ function summary() {
   if (!s.over) return null;
   return {
     grid: '⚡'.repeat(Math.min(s.solved, 12)) || '⬛',
-    detail: `${s.solved} target${s.solved === 1 ? '' : 's'} · ${s.misses} miss${s.misses === 1 ? '' : 'es'}`,
+    detail: `${s.solved} target${s.solved === 1 ? '' : 's'}`,
+    outcome: s.misses === 0 && s.solved > 0 ? 'clean run' : 'run over',
     score: s.score,
     won: s.solved > 0,
   };

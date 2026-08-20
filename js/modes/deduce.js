@@ -10,10 +10,19 @@ import * as UI from '../ui.js';
  * 100% / 96% / 82% for that solver across easy / normal / hard.
  */
 const BANDS = {
-  easy:   { guesses: 8 },
-  normal: { guesses: 6 },
-  hard:   { guesses: 5 },
+  easy:   { guesses: 8, showCandidates: true },
+  normal: { guesses: 6, showCandidates: true },
+  hard:   { guesses: 5, showCandidates: false },
 };
+
+/** Every legal three-tile combo — the starting candidate set. */
+const ALL_COMBOS = (() => {
+  const out = [];
+  for (const a of E.LETTERS) for (const b of E.LETTERS) for (const c of E.LETTERS) {
+    if (a !== b && b !== c && a !== c) out.push(a + b + c);
+  }
+  return out;
+})();
 const SCORE = { base: 600, perGuess: 90, floor: 80 };
 
 let host = null;
@@ -25,6 +34,7 @@ function start() {
   s = {
     tiles: puzzle.tiles, secret: puzzle.secret, secretValue: puzzle.value,
     combo: [], guesses: [], left: band.guesses, over: false, won: false, score: 0,
+    candidates: ALL_COMBOS.slice(),
   };
   UI.clearLog();
   UI.renderBoard(s.tiles, E.LETTERS, pick);
@@ -34,11 +44,28 @@ function start() {
 }
 
 /** Wordle-style position feedback; combos always hold three distinct tiles. */
-function score(guess) {
-  return [...guess].map((letter, i) => {
-    if (s.secret[i] === letter) return 'hit';
-    if (s.secret.includes(letter)) return 'moved';
-    return 'off';
+const marksAgainst = (secret, guess) => [...guess].map((letter, i) => {
+  if (secret[i] === letter) return 'hit';
+  if (secret.includes(letter)) return 'moved';
+  return 'off';
+});
+
+const score = (guess) => marksAgainst(s.secret, guess);
+
+/*
+ * Narrow the candidate set to the combos still consistent with every clue given
+ * so far — the colours AND the higher/lower arrow. This is the number the HUD
+ * shows: the old Score readout sat at 0 for the whole round, and a number that
+ * does not move when the player decides something is noise on the screen.
+ */
+function refineCandidates(guess, marks, guessValue) {
+  const key = marks.join('');
+  const sign = Math.sign(s.secretValue - guessValue);
+  s.candidates = s.candidates.filter((c) => {
+    if (marksAgainst(c, guess).join('') !== key) return false;
+    const cv = E.wholeOrNull(E.comboValue(s.tiles, c));
+    if (cv === null) return true;                 // no whole value, arrow says nothing
+    return Math.sign(cv - guessValue) === sign;
   });
 }
 
@@ -70,6 +97,7 @@ function submit() {
   const marks = score(guess);
   const delta = s.secretValue - value;
   s.guesses.push({ combo: guess, marks, value, delta });
+  refineCandidates(guess, marks, value);
   s.left -= 1;
   s.combo = [];
 
@@ -127,7 +155,9 @@ function render() {
   UI.setHud([
     { label: 'Hidden combo', value: s.over && !s.won ? s.secret.toUpperCase() : '? ? ?', big: true },
     { label: 'Guesses left', value: s.left, warn: s.left <= 1 },
-    { label: 'Score', value: s.score },
+    BANDS[host.level()].showCandidates
+      ? { label: 'Still possible', value: s.over ? '—' : s.candidates.length }
+      : { label: 'Guessed', value: s.guesses.length },
     { label: 'Time', value: host.clock.label() },
   ]);
   UI.setPrompt(s.combo.length === 3
@@ -163,6 +193,7 @@ function summary() {
   return {
     grid: s.guesses.map((g) => g.marks.map((m) => EMOJI[m]).join('')).join('\n'),
     detail: s.won ? `${s.guesses.length}/${s.guesses.length + s.left}` : `X/${s.guesses.length + s.left}`,
+    outcome: s.won ? 'cracked' : 'out of guesses',
     score: s.score,
     won: s.won,
   };
@@ -190,7 +221,7 @@ export default {
     'One three-tile combo is hidden. Build a guess and press <kbd>Enter</kbd>.',
 '<strong>✓ green</strong> means right tile in the right slot; <strong>↔ amber</strong> means the tile is in the combo but a different slot; <strong>· grey</strong> means it is not in the combo at all.',
     'You also see your guess’s value and whether the hidden combo’s value is higher or lower — the arithmetic narrows it faster than the colours do.',
-    'Tiles ruled out are crossed off the board automatically, so you never have to hold it all in your head.',
+    'Tiles ruled out are crossed off the board automatically, and on Easy and Normal the status bar counts how many combos still fit every clue — so you can watch the space close instead of guessing blind.',
   ],
   init(h) { host = h; },
   start, pick, key, render, summary,

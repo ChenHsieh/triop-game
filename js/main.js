@@ -95,7 +95,8 @@ function recordDaily() {
   if (!sum) return;
   Daily.saveResult({
     day: dailyDay, mode: current.id, modeName: current.name,
-    grid: sum.grid, detail: sum.detail, score: sum.score, won: sum.won,
+    grid: sum.grid, detail: sum.detail, outcome: sum.outcome,
+    score: sum.score, won: sum.won,
   });
   renderShare();
 }
@@ -144,7 +145,7 @@ function renderShare() {
   };
   add('div', 'share-head', `TriOp #${done.day} · ${done.modeName}`);
   add('pre', 'share-grid', done.grid);
-  add('div', 'share-detail', `${done.detail} · ${done.score} pts`);
+  add('div', 'share-detail', `${done.detail} — ${done.outcome}`);
 
   const btn = document.createElement('button');
   btn.type = 'button';

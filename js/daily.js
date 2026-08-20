@@ -33,8 +33,14 @@ export function saveResult(result) {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(result)); } catch { /* private mode */ }
 }
 
-export function shareText({ day, modeName, grid, detail, score }) {
-  return [`TriOp #${day} · ${modeName}`, grid, `${detail} · ${score} pts`, SITE].join('\n');
+/*
+ * One number and a named outcome. The card used to carry the progress fraction
+ * *and* the points, and two numbers a reader cannot rank against each other stop
+ * the card working as a currency. Points stay in the game; the card gets the
+ * outcome.
+ */
+export function shareText({ day, modeName, grid, detail, outcome }) {
+  return [`TriOp #${day} · ${modeName}`, grid, `${detail} — ${outcome}`, SITE].join('\n');
 }
 
 /** Clipboard with a synchronous fallback for browsers that refuse the async API. */

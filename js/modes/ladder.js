@@ -3,12 +3,19 @@
 import * as E from '../engine.js';
 import * as UI from '../ui.js';
 
+/*
+ * `optimum` is the true shortest route, found by exhaustive breadth-first search
+ * when the board is built. Par is deliberately optimum + 1: a par derived
+ * straight from an optimal solver can never be beaten, which is the opposite of
+ * how par works in golf. A good line matches par; the shortest line beats it and
+ * scores the perfect-line bonus.
+ */
 const BANDS = {
-  easy:   { par: 3, preview: true,  hints: 2, timeBonus: 150 },
-  normal: { par: 4, preview: false, hints: 1, timeBonus: 200 },
-  hard:   { par: 5, preview: false, hints: 1, timeBonus: 300 },
+  easy:   { optimum: 3, preview: true,  hints: 2, timeBonus: 150 },
+  normal: { optimum: 4, preview: false, hints: 1, timeBonus: 200 },
+  hard:   { optimum: 5, preview: false, hints: 1, timeBonus: 300 },
 };
-const SCORE = { base: 300, overPar: 60, floor: 60, hint: 75 };
+const SCORE = { base: 300, overPar: 60, floor: 60, hint: 75, perfectLine: 150 };
 
 let host = null;
 let s = {};
@@ -20,21 +27,28 @@ const legal = (value, tile) => {
 
 function start() {
   const band = BANDS[host.level()];
-  const puzzle = E.ladderPuzzle({ par: band.par });
+  const puzzle = E.ladderPuzzle({ par: band.optimum });
   s = {
-    tiles: puzzle.tiles, start: puzzle.start, target: puzzle.target, par: puzzle.par,
+    tiles: puzzle.tiles, start: puzzle.start, target: puzzle.target,
+    optimum: puzzle.par, par: puzzle.par + 1,
     trail: [], value: puzzle.start, over: false, won: false,
     hintsLeft: band.hints, hintsUsed: 0, hinted: null, score: 0,
   };
   UI.clearLog();
   UI.renderBoard(s.tiles, E.LETTERS, pick);
   UI.setBoardNote('Tiles apply <em>left to right</em> — no precedence here. Greyed tiles would break the whole number.');
-  UI.say(`Walk ${s.start} to ${s.target}. Par is ${s.par} tiles; each tile is usable once.`);
+  UI.say(`Walk ${s.start} to ${s.target}. Par is ${s.par} tiles — ${s.optimum} is possible, and beats par.`);
   render();
 }
 
-/** Shortest remaining route from the current value, using unused tiles. */
-function routeFromHere(depth = 6) {
+/*
+ * Shortest remaining route from the current value, using unused tiles. The depth
+ * bound is what keeps this affordable — measured on a par-5 board mid-play it is
+ * 4 ms median and 61 ms worst case, and an unbounded search is far worse. It can
+ * therefore only report "no route within `depth` tiles", which is what the
+ * wording at the call site says.
+ */
+function routeFromHere(depth = 5) {
   const unused = E.LETTERS.filter((l) => !s.trail.includes(l));
   let frontier = [{ v: s.value, used: [] }];
   for (let d = 1; d <= depth; d++) {
@@ -71,7 +85,12 @@ function pick(letter) {
   s.hinted = null;
   UI.say(`<span class="mono">${before} ${E.SYMBOL[s.tiles[letter].op]} ${s.tiles[letter].num} = ${next}</span>`, next === s.target ? 'ok' : 'note');
   if (next === s.target) finish();
-  else if (!routeFromHere()) UI.say('No route to the target from here — undo a step.', 'no');
+  else if (!routeFromHere()) {
+    s.stuck = true;
+    UI.say('No short route from here — undo a step.', 'no');
+  } else {
+    s.stuck = false;
+  }
   render();
 }
 
@@ -80,6 +99,7 @@ function undo() {
   s.trail.pop();
   s.value = s.trail.reduce((v, l) => legal(v, s.tiles[l]), s.start);
   s.hinted = null;
+  s.stuck = false;
   render();
 }
 
@@ -88,6 +108,7 @@ function reset() {
   s.trail = [];
   s.value = s.start;
   s.hinted = null;
+  s.stuck = false;
   render();
 }
 
@@ -108,11 +129,13 @@ function finish() {
   s.over = true;
   s.won = true;
   const over = Math.max(0, s.trail.length - s.par);
+  const perfect = s.trail.length <= s.optimum;
   const secs = host.clock.seconds();
   const bonus = Math.max(0, BANDS[host.level()].timeBonus - 4 * secs);
-  s.score = Math.max(SCORE.floor, SCORE.base - SCORE.overPar * over) - SCORE.hint * s.hintsUsed + bonus;
+  s.score = Math.max(SCORE.floor, SCORE.base - SCORE.overPar * over)
+    + (perfect ? SCORE.perfectLine : 0) - SCORE.hint * s.hintsUsed + bonus;
   s.score = Math.max(0, s.score);
-  const verdict = over === 0 ? 'on par' : `${over} over par`;
+  const verdict = perfect ? `the perfect line, +${SCORE.perfectLine}` : over === 0 ? 'on par' : `${over} over par`;
   UI.say(`Reached ${s.target} in ${s.trail.length} tiles — ${verdict}. Time bonus +${bonus}. Final score ${s.score}.`, 'big');
   host.award({ score: s.score, solved: 1, cleared: true });
 }
@@ -145,7 +168,7 @@ function render() {
   UI.setHud([
     { label: 'Now', value: s.value, big: true },
     { label: 'Target', value: s.target },
-    { label: 'Tiles', value: `${s.trail.length}/${s.par}`, sub: 'used / par' },
+    { label: 'Tiles', value: `${s.trail.length}/${s.par}`, sub: `par · ${s.optimum} beats it` },
     { label: 'Time', value: host.clock.label() },
   ]);
   UI.setPrompt(trailHTML());
@@ -164,7 +187,7 @@ function render() {
     };
   });
   UI.setControls([
-    { id: 'undo', label: 'Undo', quiet: true, disabled: s.over || !s.trail.length },
+    { id: 'undo', label: 'Undo', quiet: !s.stuck, primary: !!s.stuck, disabled: s.over || !s.trail.length },
     { id: 'reset', label: 'Reset', quiet: true, disabled: s.over || !s.trail.length },
     { id: 'hint', label: 'Hint', badge: s.hintsLeft, disabled: s.over || s.hintsLeft <= 0 },
     { id: 'giveup', label: 'Give up', quiet: true, disabled: s.over },
@@ -179,11 +202,12 @@ function render() {
 
 function summary() {
   if (!s.over) return null;
-  if (!s.won) return { grid: '⬛'.repeat(s.par), detail: 'gave up', score: 0, won: false };
+  if (!s.won) return { grid: '⬛'.repeat(s.par), detail: `–/${s.par} tiles`, outcome: 'gave up', score: 0, won: false };
   const over = Math.max(0, s.trail.length - s.par);
   return {
     grid: '🟩'.repeat(Math.min(s.trail.length, s.par)) + '🟨'.repeat(Math.min(over, 6)),
-    detail: `${s.trail.length}/${s.par} tiles` + (s.hintsUsed ? ` · ${s.hintsUsed} hint` : '') + (over === 0 ? ' · on par' : ''),
+    detail: `${s.trail.length}/${s.par} tiles`,
+    outcome: s.trail.length <= s.optimum ? 'perfect line' : over === 0 ? 'on par' : `${over} over`,
     score: s.score,
     won: true,
   };
@@ -214,7 +238,7 @@ export default {
     'You start on a number. Each tile you play applies its operator to the <strong>running total</strong>, left to right — no precedence to track.',
     'Every step must stay a whole number. Tiles that would not are greyed out, so every move you can see is a legal move.',
     'Each tile is usable once. <kbd>Backspace</kbd> undoes a step for free, <kbd>Esc</kbd> resets.',
-    'Par is the fewest tiles that reach the target. Landing on par scores best; going over costs points, not the round.',
+    'Par is one tile more than the shortest possible route, so par is a good line and the shortest line <em>beats</em> it for a bonus. Going over par costs points, not the round.',
   ],
   init(h) { host = h; },
   start, pick, key, render, summary,
