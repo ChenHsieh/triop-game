@@ -75,7 +75,8 @@ gotoMode('Sprint');
   [...combo].forEach(key); key('Enter');
   check('target advances after a hit', num(hud()[0]) !== t0, `${t0} -> ${num(hud()[0])}`);
   check('cleared counter increments', num(hud()[1]) === 1, hud()[1]);
-  check('clock gains time on a hit', num(hud()[3]) > time0, `${time0}s -> ${num(hud()[3])}s`);
+  // The runaway regression: awarding time per hit made 29% of Easy runs endless.
+  check('clearing a target never extends the clock', num(hud()[3]) <= time0, `${time0}s -> ${num(hud()[3])}s`);
   // deliberate miss
   const t1 = num(hud()[0]);
   const before = num(hud()[3]);
@@ -85,10 +86,13 @@ gotoMode('Sprint');
     const v = E.evaluate(tm[a].num, SYM[tm[b].op], tm[b].num, SYM[tm[c].op], tm[c].num);
     if (E.wholeOrNull(v) !== t1) wrong = a + b + c;
   }
+  const scoreBefore = num(hud()[2]);
   [...wrong].forEach(key); key('Enter');
-  check('miss costs seconds', num(hud()[3]) < before, `${before}s -> ${num(hud()[3])}s`);
+  check('miss costs points, not seconds', num(hud()[2]) < scoreBefore && num(hud()[3]) === before,
+    `score ${scoreBefore} -> ${num(hud()[2])}, clock ${before}s -> ${num(hud()[3])}s`);
+  const scoreBeforeSkip = num(hud()[2]);
   ctl('Skip').fire('click');
-  check('skip costs seconds and moves on', num(hud()[0]) !== t1);
+  check('skip costs points and moves on', num(hud()[0]) !== t1 && num(hud()[2]) < scoreBeforeSkip);
   console.log('  feed:', feed(2));
 }
 
@@ -195,22 +199,32 @@ console.log('\n=== deduce candidate invariant ===');
 }
 
 /* ---------------- sprint run-out ---------------- */
-console.log('\n=== sprint clock ===');
-gotoMode('Sprint');
+console.log('\n=== sprint run length is bounded ===');
 {
+  gotoMode('Sprint'); setLevel('easy');
   const tm = boardMap(); const L = tiles();
-  let guards = 0;
-  while (num(hud()[3]) > 0 && guards++ < 40) {
-    const t = num(hud()[0]);
-    let wrong = null;
+  const solveFor = (target) => {
     for (const a of L) for (const b of L) for (const c of L) {
-      if (a === b || b === c || a === c || wrong) continue;
+      if (a === b || b === c || a === c) continue;
       const v = E.evaluate(tm[a].num, SYM[tm[b].op], tm[b].num, SYM[tm[c].op], tm[c].num);
-      if (E.wholeOrNull(v) !== t) wrong = a + b + c;
+      if (E.wholeOrNull(v) === target) return a + b + c;
     }
-    [...wrong].forEach(key); key('Enter');
+    return null;
+  };
+  const startClock = num(hud()[3]);
+  // Clear targets perfectly while advancing only 1.5s each turn — a recalling
+  // player on a memorised board, which is exactly the play pattern that used to
+  // make a run immortal.
+  let cleared = 0, ticks = 0;
+  while (num(hud()[3]) > 0 && ticks < 400) {
+    const c = solveFor(num(hud()[0]));
+    if (c) { [...c].forEach(key); key('Enter'); cleared++; }
+    globalThis.__triopAdvance(1500);
+    ticks++;
   }
-  check('sprint ends when the clock runs out', num(hud()[3]) === 0, `after ${guards} misses`);
+  check('a flawless run still ends', num(hud()[3]) === 0, `${cleared} targets cleared`);
+  check('play time never exceeded the stated run length', ticks * 1.5 <= startClock + 2,
+    `${(ticks * 1.5).toFixed(0)}s of play against a ${startClock}s clock`);
   check('run-over state is announced', feed(1)[0].includes('Time.'), feed(1)[0]);
 }
 

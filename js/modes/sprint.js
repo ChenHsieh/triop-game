@@ -4,15 +4,24 @@ import * as E from '../engine.js';
 import * as UI from '../ui.js';
 
 /*
- * Measured median combos a scanning player examines before finding one solution,
- * by target richness: >=16 -> 39, >=8 -> 53, >=5 -> 74, >=2 -> 137. The old
- * hard band (>=2) had a p90 of 622 inside a 45s clock — unfinishable. Targets
- * are now dense enough that the clock, not the haystack, is the pressure.
+ * THE RUN LENGTH IS FIXED. Nothing the player does adds time.
+ *
+ * Clearing a target used to award seconds, which made the clock an unbounded
+ * positive loop: the board never changes during a run, so a player memorises the
+ * targets, and a remembered answer costs ~1.5s to type against a +3s award.
+ * Simulated, 29% of Easy runs never ended at all, with a p90 length of 52
+ * minutes. Capping the clock at its starting value does NOT fix this — that
+ * bounds the stock while the flow is still positive, and measured the same 29%.
+ * A single-player positive loop needs an engineered bound, and a fixed length is
+ * the one that cannot be farmed.
+ *
+ * Lengths chosen so no run clears nothing: at 105/85/70s the 10th percentile is
+ * 6/2/1 targets, against 4/1/0 at the old lengths.
  */
 const BANDS = {
-  easy:   { minSolutions: 16, seconds: 90, reward: 3, penalty: 4, skip: 6 },
-  normal: { minSolutions: 8,  seconds: 70, reward: 3, penalty: 5, skip: 8 },
-  hard:   { minSolutions: 5,  seconds: 55, reward: 2, penalty: 6, skip: 10 },
+  easy:   { minSolutions: 16, seconds: 105 },
+  normal: { minSolutions: 8,  seconds: 85 },
+  hard:   { minSolutions: 5,  seconds: 70 },
 };
 /*
  * Sprint keeps the chain multiplier that Classic gives up. Here the uncertainty
@@ -21,6 +30,9 @@ const BANDS = {
  */
 const BASE = 100;
 const CHAIN_CAP = 5;
+// Misses cost points, not seconds — the clock belongs to the run, not the score.
+const MISS = 50;
+const SKIP = 75;
 
 let host = null;
 let s = {};
@@ -55,7 +67,7 @@ function start() {
   UI.clearLog();
   UI.renderBoard(s.tiles, E.LETTERS, pick);
   UI.setBoardNote(`The board stays fixed — only the target changes. <em>One</em> solution clears it.`);
-  UI.say(`${band.seconds}s sprint. Hit each target once; the clock is the only thing you can lose.`);
+  UI.say(`${band.seconds}s on the clock, and nothing extends it. Clear as many targets as you can.`);
   render();
 }
 
@@ -102,21 +114,18 @@ function submit() {
     s.solved += 1;
     const points = BASE * s.chain;
     s.score += points;
-    s.msLeft += band.reward * 1000;
     UI.say(`<span class="mono">${label}</span> = ${s.target} &nbsp;+${points}` +
-      (s.chain > 1 ? ` <span class="note">(×${s.chain})</span>` : '') +
-      ` <span class="note">+${band.reward}s</span>`, 'ok');
+      (s.chain > 1 ? ` <span class="note">(×${s.chain})</span>` : ''), 'ok');
     UI.flashSlots('good');
     UI.pulseHud();
     nextTarget();
   } else {
     s.chain = 0;
     s.misses += 1;
-    s.msLeft -= band.penalty * 1000;
+    s.score -= MISS;
     const off = whole === null ? '' : ` (off by ${Math.abs(whole - s.target)})`;
-    UI.say(`<span class="mono">${label}</span> = ${E.fmt(value)}${off} &nbsp;<span class="no">−${band.penalty}s</span>`, 'no');
+    UI.say(`<span class="mono">${label}</span> = ${E.fmt(value)}${off} &nbsp;<span class="no">−${MISS}</span>`, 'no');
     UI.flashSlots('bad');
-    if (s.msLeft <= 0) { s.msLeft = 0; finish(); }
   }
   render();
 }
@@ -130,11 +139,9 @@ function nextTarget() {
 
 function skip() {
   if (s.over) return;
-  const band = BANDS[host.level()];
-  s.msLeft -= band.skip * 1000;
+  s.score -= SKIP;
   s.chain = 0;
-  UI.say(`Skipped ${s.target} — <span class="no">−${band.skip}s</span>`, 'note');
-  if (s.msLeft <= 0) { s.msLeft = 0; finish(); return; }
+  UI.say(`Skipped ${s.target} — <span class="no">−${SKIP}</span>`, 'note');
   nextTarget();
   render();
 }
@@ -142,6 +149,7 @@ function skip() {
 function finish() {
   s.over = true;
   s.running = false;
+  s.score = Math.max(0, s.score);
   host.clock.stop();
   UI.say(`Time. ${s.solved} target${s.solved === 1 ? '' : 's'} cleared — final score ${s.score}.`, 'big');
   host.award({ score: s.score, solved: s.solved, cleared: s.solved > 0 });
@@ -210,14 +218,14 @@ function key(e) {
 export default {
   id: 'sprint',
   name: 'Sprint',
-  blurb: 'One solution per target. The clock is the only thing you can lose.',
+  blurb: 'One solution per target, as many as you can fit in a fixed run.',
   usesLevel: true,
   rulesTitle: 'Sprint',
   rules: [
     'Same three-tile arithmetic as Classic, but you only need <strong>one</strong> combo per target.',
     'The board never changes — you learn it as you go, which is the whole point.',
-    'Clearing a target adds seconds and raises your chain multiplier; a miss costs seconds and resets it.',
-    '<kbd>Space</kbd> skips a target for a bigger time penalty.',
+    'The run is a fixed length and <strong>nothing extends it</strong> — clearing a target raises your chain multiplier, and a miss costs points and resets it.',
+    '<kbd>Space</kbd> skips a target for a bigger point penalty.',
   ],
   init(h) { host = h; },
   start, pick, key, render, tick, summary,

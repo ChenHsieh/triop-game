@@ -203,6 +203,17 @@ setInterval(() => {
   else if (clockRunning) UI.setHudValue('Time', clock.label());
 }, 250);
 
+/*
+ * Test hook. The harness cannot wait out a 105-second sprint, so it advances the
+ * active mode's clock directly. Exposed deliberately: without it the run-length
+ * bound is an assertion rather than a measurement, and that bound is the whole
+ * reason Sprint's economy was rebuilt.
+ */
+globalThis.__triopAdvance = (ms) => {
+  if (current.tick) current.tick(ms);
+  return true;
+};
+
 /* ---------- input ---------- */
 
 document.addEventListener('keydown', (e) => {

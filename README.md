@@ -36,7 +36,9 @@ Par is **one tile more than the shortest possible route**, so par is a good line
 Pick three different tiles. Tile 1 supplies the starting number (its operator is ignored, and the board strikes it out so you can see that); tiles 2 and 3 apply their operator under normal precedence, with the implied parentheses shown live. Clear the board by finding the required number of combos that land on the target. Easy gives you plenty of spares — around eleven solutions, and you need two. Hard gives you exactly three and wants all three. Misses cost points, so sweeping all 1320 combinations loses.
 
 ### Sprint — one solution per target, against the clock
-The board never changes for the whole run, so you learn it as you go. Each target needs only **one** combo. A hit adds seconds and raises a chain multiplier; a miss costs seconds and resets it. <kbd>Space</kbd> skips a target for a bigger penalty. 90s / 60s / 45s by difficulty.
+The board never changes for the whole run, so you learn it as you go. Each target needs only **one** combo. Clearing one raises a chain multiplier; a miss costs points and resets it. <kbd>Space</kbd> skips a target for a bigger point penalty. 105s / 85s / 70s by difficulty.
+
+**The run is a fixed length and nothing extends it.** That is a deliberate bound, not an oversight — see below.
 
 ### Deduce — narrow down a hidden combo
 One three-tile combo is hidden. Guess, and get **✓ green** (right tile, right slot), **↔ amber** (right tile, wrong slot), **· grey** (not in the combo) — plus your guess's value and whether the hidden combo's value is higher or lower. Every cell carries a glyph and a spoken label as well as a colour, since green-versus-amber is exactly the case red-green colour blindness fails on. Tiles you have ruled out are crossed off the board automatically, and on Easy and Normal the status bar counts how many combos still fit every clue you have — so you can watch the space close instead of guessing blind. 8 / 6 / 5 guesses by difficulty.
@@ -49,7 +51,7 @@ One switch, meaning something different per mode:
 |---|---|---|---|
 | Ladder | par 3, move previews on | par 4 | par 5 |
 | Classic | find 2 of 8–16, 3 hints | find 3 of 4–8, 2 hints | find **all 3 of exactly 3**, 1 hint |
-| Sprint | 90s, ≥16 combos per target | 70s, ≥8 | 55s, ≥5 |
+| Sprint | 105s, ≥16 combos per target | 85s, ≥8 | 70s, ≥5 |
 | Deduce | 8 guesses | 6 guesses | 5 guesses |
 
 Best score, plays, and clears are kept per mode in `localStorage`, along with a lifetime solved count.
@@ -64,9 +66,9 @@ Each mode's difficulty lives on a different axis, so each is judged on its own:
 
 | Mode | Metric | Easy | Normal | Hard | Steps |
 |---|---|---|---|---|---|
-| Classic | combos examined to clear (median) | 205 | 598 | 1062 | 2.9× , 1.8× |
-| Ladder | winning-route density at par | 1 in 194 | 1 in 669 | 1 in 4297 | 3.5× , 6.4× |
-| Sprint | targets cleared per run (mean) | 10.5 | 4.8 | 2.5 | 2.2× , 2.0× |
+| Classic | combos examined to clear (median) | 196 | 651 | 1044 | 3.3× , 1.6× |
+| Ladder | winning-route density at par | 1 in 204 | 1 in 768 | 1 in 3946 | 3.8× , 5.1× |
+| Sprint | targets cleared per run (mean) | 8.9 | 4.3 | 2.9 | 2.1× , 1.5× |
 | Deduce | win rate of a solver that only ever guesses consistent combos | 100% | 96% | 80% | −4, −15 pts |
 
 **Monotone is not enough — the step size matters.** Three levels that measure 786 / 867 are
@@ -126,7 +128,8 @@ Both harnesses are plain Node, no dependencies:
 
 ```bash
 cd tools
-node test.mjs        # behavioural checks — every mode played to completion
+node test.mjs        # behavioural checks — every mode played to completion, plus the
+                     # regression that a flawless Sprint run still ends
 node calibrate.mjs   # difficulty measurement — takes a few minutes
 ```
 
@@ -144,6 +147,21 @@ lands and quietly deletes that calculation. Sprint keeps its chain, because Spri
 question is "can I keep the run going" rather than "what is this worth" — the chain is the
 thing being played there, not noise over a price list.
 
+**Sprint's run length is fixed and nothing extends it.** Clearing a target used to award
+seconds. The board does not change during a run, so a player memorises the targets, and a
+remembered answer costs about 1.5 seconds to type against a +3 second award — an unbounded
+positive loop. Simulated with a learning player, **29% of Easy runs never ended at all**,
+with a 90th-percentile length of 52 minutes. Easy has only ~17 distinct qualifying targets,
+so repeats arrive fast.
+
+The first fix I tried — capping the clock at its starting value — **did not work, and the
+measurement said so**: 28.7% of runs still ran away. Capping the *stock* of time does
+nothing while the *flow* is positive; you simply return to the cap after every target. A
+single-player positive loop has nothing pushing back on it, so it needs an engineered bound,
+and a fixed run length is the one that cannot be farmed. Misses and skips now cost points
+instead of seconds. There is a regression test that plays a flawless memorised run and
+asserts it still ends.
+
 **Par is beatable.** Ladder's par is the shortest route plus one. Deriving par straight
 from an optimal solver means par *is* perfect play, so nobody ever beats it and the mode
 has no ceiling to chase.
@@ -155,6 +173,10 @@ place to put guidance settings — which is exactly how they are used here (move
 Easy Ladder, the candidate counter on Easy and Normal Deduce).
 
 ### Rejected, with the measurement
+
+**Capping Sprint's clock instead of fixing its length.** Measured at 28.7% runaway runs
+versus 29.3% uncapped — no effect. Kept in the notes because it is the obvious fix and it
+is wrong.
 
 **Greying out moves that strand you.** On a par-5 Ladder board, 52 of 100 random
 continuations reach a state with no route to the target — so marking those moves before

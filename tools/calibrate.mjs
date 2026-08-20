@@ -43,8 +43,8 @@ for(const [lvl,band] of Object.entries(CB)){
 }
 console.log('  ->', verdictEffort(cRes));
 
-console.log('\n=== SPRINT (after: >=16 / >=8 / >=5, 90 / 70 / 55s) ===');
-const SB={easy:{minSolutions:16,seconds:90,reward:3},normal:{minSolutions:8,seconds:70,reward:3},hard:{minSolutions:5,seconds:55,reward:2}};
+console.log('\n=== SPRINT (fixed run length, no time faucet: >=16/105s, >=8/85s, >=5/70s) ===');
+const SB={easy:{minSolutions:16,seconds:105},normal:{minSolutions:8,seconds:85},hard:{minSolutions:5,seconds:70}};
 const sRes=[];
 for(const [lvl,band] of Object.entries(SB)){
   const effort=[],perRun=[];
@@ -67,7 +67,7 @@ for(const [lvl,band] of Object.entries(SB)){
       const order=E.shuffle(ALL.slice()); let seen=0;
       for(const c of order){seen++;if(want.has(c))break;}
       ms-=(seen/8)*1800; if(ms<=0)break;
-      ms+=band.reward*1000; cleared++;
+      cleared++;   // nothing adds time back: the run length is fixed
     }
     perRun.push(cleared);
   }
