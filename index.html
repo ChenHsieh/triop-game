@@ -3,21 +3,56 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title> TriOp Game</title>
+  <meta name="color-scheme" content="dark light" />
+  <meta name="description" content="TriOp — four arithmetic puzzle modes on one 12-tile board." />
+  <title>TriOp</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <h1> TriOp Game </h1>
-  <div class="target">🎯 Target: <span id="target">?</span></div>
-  <div>🧮 Remaining Solutions: <span id="remaining">?</span></div>
-  <button onclick="startNewGame()">🔄 New Puzzle</button>
-  <div class="board" id="board"></div>
-  <div>
-    <input type="text" id="sequence" placeholder="Enter 3-letter combo (e.g., ACF)" maxlength="3" />
-    <button onclick="submitCombo()">Submit</button>
-  </div>
-  <div class="log" id="log"></div>
+  <header class="masthead">
+    <h1>Tri<span>Op</span></h1>
+    <p class="tagline">Twelve tiles. Four ways to play them.</p>
+  </header>
 
-  <script src="main.js"></script>
+  <main>
+    <nav class="tabs" id="tabs" aria-label="Game mode"></nav>
+    <p class="blurb" id="blurb"></p>
+
+    <section class="hud" id="hud" aria-label="Round status" aria-live="polite"></section>
+
+    <section class="stage" aria-label="Current move">
+      <div class="prompt" id="prompt"></div>
+      <div class="slots" id="slots"></div>
+    </section>
+
+    <div class="board" id="board" role="group" aria-label="Tiles"></div>
+    <p class="board-note" id="board-note"></p>
+
+    <section class="controls-row">
+      <label class="field" id="level-field">
+        <span>Difficulty</span>
+        <select id="level">
+          <option value="easy">Easy</option>
+          <option value="normal" selected>Normal</option>
+          <option value="hard">Hard</option>
+        </select>
+      </label>
+      <div class="controls" id="controls"></div>
+    </section>
+
+    <section class="panel" id="panel" aria-live="polite"></section>
+
+    <section class="log-wrap">
+      <h2 class="section-title">Feed</h2>
+      <div class="log" id="log" role="log" aria-live="polite"></div>
+    </section>
+
+    <section class="stats" id="stats" aria-label="Your records"></section>
+
+    <details class="rules" id="rules"></details>
+  </main>
+
+  <script type="module" src="js/main.js"></script>
+  <noscript><p class="board-note">TriOp needs JavaScript.</p></noscript>
 </body>
 </html>
