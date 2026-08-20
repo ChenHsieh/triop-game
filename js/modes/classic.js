@@ -2,6 +2,7 @@
 
 import * as E from '../engine.js';
 import * as UI from '../ui.js';
+import { cue } from '../audio.js';
 
 /*
  * `required` is the real difficulty lever, not the size of the solution set —
@@ -52,9 +53,10 @@ function start() {
 
 function pick(letter) {
   if (s.over || s.combo.length >= 3) return;
-  if (s.combo.includes(letter)) { UI.flashSlots('shake'); return; }
+  if (s.combo.includes(letter)) { UI.flashSlots('shake'); cue.reject(); return; }
   clearTimeout(s.submitId);
   s.combo.push(letter);
+  cue.pick();
   host.clock.start();
   render();
   if (s.combo.length === 3) s.submitId = setTimeout(submit, 260);
@@ -64,6 +66,7 @@ function pop() {
   if (s.over || !s.combo.length) return;
   clearTimeout(s.submitId);
   s.combo.pop();
+  cue.undo();
   render();
 }
 
@@ -82,6 +85,7 @@ function submit() {
   if (s.tried.has(combo)) {
     UI.say(`<span class="mono">${label}</span> — already tried`);
     UI.flashSlots('shake');
+    cue.reject();
     clearCombo();
     render();
     return;
@@ -93,6 +97,7 @@ function submit() {
     s.score += SCORE.hit;
     UI.say(`<span class="mono">${label}</span> = ${s.target} &nbsp;+${SCORE.hit}`, 'ok');
     UI.flashSlots('good');
+    cue.hit();
     UI.pulseHud();
   } else {
     s.misses += 1;
@@ -100,6 +105,7 @@ function submit() {
     const off = whole === null ? '' : ` (off by ${Math.abs(whole - s.target)})`;
     UI.say(`<span class="mono">${label}</span> = ${E.fmt(value)}${off} &nbsp;−${SCORE.miss}`, 'no');
     UI.flashSlots('bad');
+    cue.miss();
   }
 
   clearCombo();
@@ -134,6 +140,7 @@ function finish() {
     UI.say(`Flawless: no misses, no hints — +${SCORE.perfect}`, 'big');
   }
   s.score = Math.max(0, s.score);
+  cue.win();
   const spare = s.solutions.length - s.found.size;
   if (spare > 0) UI.say(`${spare} other combo${spare === 1 ? '' : 's'} also worked: <span class="mono">${s.solutions.filter((x) => !s.found.has(x)).map((x) => x.toUpperCase()).join(' ')}</span>`);
   host.award({ score: s.score, solved: s.found.size, cleared: true });
@@ -146,6 +153,7 @@ function reveal() {
   s.over = true;
   s.revealed = true;
   s.score = Math.max(0, s.score);
+  cue.lose();
   const missed = s.solutions.filter((x) => !s.found.has(x));
   UI.say(`Revealed — ${missed.length} missed: <span class="mono">${missed.map((x) => x.toUpperCase()).join(' ') || '—'}</span>`, 'big');
   host.award({ score: s.score, solved: s.found.size, cleared: false });

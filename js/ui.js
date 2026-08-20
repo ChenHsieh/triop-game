@@ -13,6 +13,7 @@ export const dom = {
   board: el('board'),
   boardNote: el('board-note'),
   level: el('level'),
+  sound: el('sound'),
   levelField: el('level-field'),
   controls: el('controls'),
   share: el('share'),
@@ -143,7 +144,8 @@ export function setControls(buttons, onAction) {
   buttons.forEach((b) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'btn' + (b.primary ? ' btn-primary' : '') + (b.quiet ? ' btn-quiet' : '');
+    btn.className = 'btn' + (b.primary ? ' btn-primary' : '') + (b.quiet ? ' btn-quiet' : '')
+      + (b.nudge ? ' nudge' : '');
     btn.innerHTML = b.label + (b.badge !== undefined ? ` <span class="badge">${b.badge}</span>` : '');
     btn.disabled = !!b.disabled;
     btn.addEventListener('click', () => { onAction(b.id); btn.blur(); });

@@ -2,6 +2,7 @@
 
 import * as E from '../engine.js';
 import * as UI from '../ui.js';
+import { cue } from '../audio.js';
 
 /*
  * `optimum` is the true shortest route, found by exhaustive breadth-first search
@@ -71,11 +72,12 @@ function routeFromHere(depth = 5) {
 
 function pick(letter) {
   if (s.over) return;
-  if (s.trail.includes(letter)) { UI.flashSlots('shake'); return; }
+  if (s.trail.includes(letter)) { UI.flashSlots('shake'); cue.reject(); return; }
   const next = legal(s.value, s.tiles[letter]);
   if (next === null) {
     UI.say(`<span class="mono">${letter.toUpperCase()}</span> would leave a fraction — not allowed here.`, 'no');
     UI.flashSlots('shake');
+    cue.reject();
     return;
   }
   host.clock.start();
@@ -84,12 +86,12 @@ function pick(letter) {
   s.value = next;
   s.hinted = null;
   UI.say(`<span class="mono">${before} ${E.SYMBOL[s.tiles[letter].op]} ${s.tiles[letter].num} = ${next}</span>`, next === s.target ? 'ok' : 'note');
-  if (next === s.target) finish();
-  else if (!routeFromHere()) {
-    s.stuck = true;
-    UI.say('No short route from here — undo a step.', 'no');
+  if (next === s.target) {
+    finish();
   } else {
-    s.stuck = false;
+    cue.step(next > before);
+    s.stuck = !routeFromHere();
+    if (s.stuck) UI.say('No short route from here — undo a step.', 'no');
   }
   render();
 }
@@ -97,6 +99,7 @@ function pick(letter) {
 function undo() {
   if (s.over || !s.trail.length) return;
   s.trail.pop();
+  cue.undo();
   s.value = s.trail.reduce((v, l) => legal(v, s.tiles[l]), s.start);
   s.hinted = null;
   s.stuck = false;
@@ -128,6 +131,7 @@ function finish() {
   host.clock.stop();
   s.over = true;
   s.won = true;
+  cue.win();
   const over = Math.max(0, s.trail.length - s.par);
   const perfect = s.trail.length <= s.optimum;
   const secs = host.clock.seconds();
@@ -144,6 +148,7 @@ function giveUp() {
   if (s.over) return;
   host.clock.stop();
   s.over = true;
+  cue.lose();
   const route = routeFromHere();
   UI.say(route
     ? `Gave up — from ${s.value} the shortest finish was <span class="mono">${route.map((l) => l.toUpperCase()).join(' ')}</span>.`
@@ -155,10 +160,12 @@ function giveUp() {
 function trailHTML() {
   let v = s.start;
   const parts = [`<span class="step start">${s.start}</span>`];
-  s.trail.forEach((l) => {
+  s.trail.forEach((l, i) => {
     const t = s.tiles[l];
     v = legal(v, t);
-    parts.push(`<span class="op-step">${E.SYMBOL[t.op]}${t.num}</span><span class="step${v === s.target ? ' hit' : ''}">${v}</span>`);
+    const newest = i === s.trail.length - 1;
+    parts.push(`<span class="op-step">${E.SYMBOL[t.op]}${t.num}</span>` +
+      `<span class="step${v === s.target ? ' hit' : ''}${newest ? ' latest' : ''}">${v}</span>`);
   });
   return parts.join('<span class="arrow">→</span>');
 }
@@ -187,7 +194,8 @@ function render() {
     };
   });
   UI.setControls([
-    { id: 'undo', label: 'Undo', quiet: !s.stuck, primary: !!s.stuck, disabled: s.over || !s.trail.length },
+    { id: 'undo', label: 'Undo', quiet: !s.stuck, primary: !!s.stuck, nudge: !!s.stuck,
+      disabled: s.over || !s.trail.length },
     { id: 'reset', label: 'Reset', quiet: true, disabled: s.over || !s.trail.length },
     { id: 'hint', label: 'Hint', badge: s.hintsLeft, disabled: s.over || s.hintsLeft <= 0 },
     { id: 'giveup', label: 'Give up', quiet: true, disabled: s.over },

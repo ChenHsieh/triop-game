@@ -2,6 +2,7 @@
 
 import * as E from '../engine.js';
 import * as UI from '../ui.js';
+import { cue, crossedDown } from '../audio.js';
 
 /*
  * THE RUN LENGTH IS FIXED. Nothing the player does adds time.
@@ -90,10 +91,18 @@ function start() {
   render();
 }
 
+// The clock draining is a failure with no event — the hardest kind to make feel
+// fair. These fire on the crossing only, never per tick.
+const CLOCK_WARNINGS = [0.5, 0.25, 0.1];
+
 function tick(dt) {
   if (s.over || !s.running) return;
+  const total = BANDS[host.level()].seconds * 1000;
+  const before = s.msLeft / total;
   s.msLeft -= dt;
   if (s.msLeft <= 0) { s.msLeft = 0; finish(); render(); return; }
+  crossedDown(before, s.msLeft / total, CLOCK_WARNINGS)
+    .forEach((t) => cue.warn(CLOCK_WARNINGS.indexOf(t)));
   const secs = Math.ceil(s.msLeft / 1000);
   UI.setHudValue('Time left', `${secs}s`, secs <= 10);
 }
@@ -104,10 +113,11 @@ function begin() {
 
 function pick(letter) {
   if (s.over || s.combo.length >= 3) return;
-  if (s.combo.includes(letter)) { UI.flashSlots('shake'); return; }
+  if (s.combo.includes(letter)) { UI.flashSlots('shake'); cue.reject(); return; }
   clearTimeout(s.submitId);
   begin();
   s.combo.push(letter);
+  cue.pick();
   render();
   if (s.combo.length === 3) s.submitId = setTimeout(submit, 200);
 }
@@ -116,6 +126,7 @@ function pop() {
   if (s.over || !s.combo.length) return;
   clearTimeout(s.submitId);
   s.combo.pop();
+  cue.undo();
   render();
 }
 
@@ -136,6 +147,7 @@ function submit() {
     UI.say(`<span class="mono">${label}</span> = ${s.target} &nbsp;+${points}` +
       (s.chain > 1 ? ` <span class="note">(×${s.chain})</span>` : ''), 'ok');
     UI.flashSlots('good');
+    cue.hit();
     UI.pulseHud();
     nextTarget();
   } else {
@@ -145,6 +157,7 @@ function submit() {
     const off = whole === null ? '' : ` (off by ${Math.abs(whole - s.target)})`;
     UI.say(`<span class="mono">${label}</span> = ${E.fmt(value)}${off} &nbsp;<span class="no">−${MISS}</span>`, 'no');
     UI.flashSlots('bad');
+    cue.miss();
   }
   render();
 }
@@ -170,6 +183,7 @@ function finish() {
   s.running = false;
   s.score = Math.max(0, s.score);
   host.clock.stop();
+  cue.lose();
   UI.say(`Time. ${s.solved} target${s.solved === 1 ? '' : 's'} cleared — final score ${s.score}.`, 'big');
   host.award({ score: s.score, solved: s.solved, cleared: s.solved > 0 });
 }

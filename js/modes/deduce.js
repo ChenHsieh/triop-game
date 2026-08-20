@@ -2,6 +2,7 @@
 
 import * as E from '../engine.js';
 import * as UI from '../ui.js';
+import { cue } from '../audio.js';
 
 /*
  * Budget is the whole difficulty lever. Hiding the value arrow on hard dropped a
@@ -71,24 +72,27 @@ function refineCandidates(guess, marks, guessValue) {
 
 function pick(letter) {
   if (s.over || s.combo.length >= 3) return;
-  if (s.combo.includes(letter)) { UI.flashSlots('shake'); return; }
+  if (s.combo.includes(letter)) { UI.flashSlots('shake'); cue.reject(); return; }
   host.clock.start();
   s.combo.push(letter);
+  cue.pick();
   render();
 }
 
 function pop() {
   if (s.over || !s.combo.length) return;
   s.combo.pop();
+  cue.undo();
   render();
 }
 
 function submit() {
-  if (s.over || s.combo.length !== 3) { UI.flashSlots('shake'); return; }
+  if (s.over || s.combo.length !== 3) { UI.flashSlots('shake'); cue.reject(); return; }
   const guess = s.combo.join('');
   if (s.guesses.some((g) => g.combo === guess)) {
     UI.say(`<span class="mono">${guess.toUpperCase()}</span> — already guessed`);
     UI.flashSlots('shake');
+    cue.reject();
     s.combo = [];
     render();
     return;
@@ -103,9 +107,13 @@ function submit() {
 
   if (guess === s.secret) {
     UI.flashSlots('good');
+    cue.win();
     finish(true);
   } else {
     UI.flashSlots('bad');
+    cue.miss();
+    // Anticipatory: the warning lands before the last guess, not after it.
+    if (s.left === 1) cue.lastChance();
     const hits = marks.filter((m) => m === 'hit').length;
     const moved = marks.filter((m) => m === 'moved').length;
     UI.say(`<span class="mono">${guess.toUpperCase()}</span> = ${E.fmt(value)} — ` +
@@ -126,6 +134,7 @@ function finish(won) {
     UI.say(`Cracked it in ${used} guess${used === 1 ? '' : 'es'} — ${s.score} points.`, 'ok');
   } else {
     s.score = 0;
+    cue.lose();
     UI.say(`Out of guesses. It was <span class="mono">${s.secret.toUpperCase()}</span> = ${E.fmt(s.secretValue)}.`, 'big');
   }
   host.award({ score: s.score, solved: won ? 1 : 0, cleared: won });

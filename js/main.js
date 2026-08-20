@@ -3,6 +3,7 @@
 import { LETTERS, setSeed, clearSeed } from './engine.js';
 import * as UI from './ui.js';
 import * as Daily from './daily.js';
+import * as Audio from './audio.js';
 import classic from './modes/classic.js';
 import sprint from './modes/sprint.js';
 import ladder from './modes/ladder.js';
@@ -206,6 +207,7 @@ setInterval(() => {
   const now = Date.now();
   const dt = now - lastTick;
   lastTick = now;
+  if (hidden) return;                  // the clock does not run while the tab is away
   if (current.tick) current.tick(dt);
   else if (clockRunning) UI.setHudValue('Time', clock.label());
 }, 250);
@@ -309,6 +311,34 @@ globalThis.__triopAdvance = (ms) => {
   return true;
 };
 
+/* ---------- sound ---------- */
+
+function paintSound() {
+  UI.dom.sound.textContent = Audio.isOn() ? '🔊 Sound' : '🔇 Muted';
+  UI.dom.sound.setAttribute('aria-pressed', String(Audio.isOn()));
+  UI.dom.sound.classList.toggle('btn-quiet', !Audio.isOn());
+}
+
+UI.dom.sound.addEventListener('click', () => {
+  Audio.setEnabled(!Audio.isOn());
+  paintSound();
+  UI.dom.sound.blur();
+});
+
+/* ---------- pause when the tab is hidden ---------- */
+
+/*
+ * A timed run draining while the player is looking at another tab is a failure
+ * with no event — they come back to a run that ended without them. Sprint's
+ * ticker is wall-clock, so hiding the tab used to cost real seconds.
+ */
+let hidden = false;
+document.addEventListener('visibilitychange', () => {
+  hidden = document.visibilityState === 'hidden';
+  if (hidden) clock.stop();
+  else lastTick = Date.now();          // do not bill the player for time away
+});
+
 /* ---------- input ---------- */
 
 document.addEventListener('keydown', (e) => {
@@ -351,5 +381,6 @@ if (prefs.mode === 'daily') {
 }
 
 paintChrome();
+paintSound();
 renderTransfer();
 newRound();

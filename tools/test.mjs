@@ -1,6 +1,7 @@
 import { install } from './dom.mjs';
-const IDS = ['tabs','blurb','hud','prompt','slots','board','board-note','level','level-field','controls','share','panel','log','stats','transfer','rules'];
+const IDS = ['tabs','blurb','hud','prompt','slots','board','board-note','level','level-field','sound','controls','share','panel','log','stats','transfer','rules'];
 const { store, doc } = install(IDS);
+doc.visibilityState = 'visible';
 store['level'].value = 'normal';
 
 const E = await import('../js/engine.js');
@@ -384,6 +385,60 @@ console.log('\n=== restore codes ===');
   check('transfer panel rendered', !!store['transfer'].querySelector('.transfer-field'), '');
   const buttons = store['transfer'].querySelectorAll('btn');
   check('copy and restore controls exist', store['transfer'].children.length >= 4, `${store['transfer'].children.length} nodes`);
+}
+
+/* ---------------- feel: sound and motion ---------------- */
+console.log('\n=== sound and motion ===');
+{
+  const A = await import('../js/audio.js');
+  const fs = await import('node:fs');
+
+  // Headless: no AudioContext exists, and a cue must never break a turn.
+  let threw = false;
+  try { A.cue.hit(); A.cue.miss(); A.cue.win(); A.cue.lose(); A.cue.warn(2); A.cue.lastChance(); A.cue.step(true); }
+  catch { threw = true; }
+  check('cues are safe no-ops without Web Audio', !threw, '');
+
+  // Threshold cues must fire once per downward crossing, never per tick.
+  check('a crossing fires once', JSON.stringify(A.crossedDown(0.35, 0.28, [0.5, 0.3, 0.1])) === '[0.3]');
+  check('staying below fires nothing', A.crossedDown(0.28, 0.27, [0.5, 0.3, 0.1]).length === 0);
+  check('rising past a threshold fires nothing', A.crossedDown(0.2, 0.6, [0.5, 0.3, 0.1]).length === 0);
+  check('a large jump reports every threshold it passed', A.crossedDown(0.6, 0.05, [0.5, 0.3, 0.1]).length === 3);
+
+  // The toggle
+  const soundBtn = store['sound'];
+  const wasOn = A.isOn();
+  soundBtn.fire('click');
+  check('sound toggle flips state and label', A.isOn() === !wasOn && /Muted|Sound/.test(soundBtn.textContent), soundBtn.textContent);
+  check('sound toggle reports state to assistive tech', soundBtn.getAttribute('aria-pressed') === String(A.isOn()));
+  check('sound preference persists', localStorage.getItem('triop.sound.v1') === (A.isOn() ? 'on' : 'off'));
+  soundBtn.fire('click');
+
+  // A hidden tab must not bill the player for time away.
+  gotoMode('Sprint'); setLevel('normal');
+  const L3 = tiles(), tm3 = boardMap();
+  for (const a of L3) { key(a); break; }            // start the run
+  key('Escape');
+  const clockBefore = num(hud()[3]);
+  doc.visibilityState = 'hidden';
+  doc.fire('visibilitychange', {});
+  globalThis.__triopAdvance(20000);                 // 20s of wall clock, tab hidden
+  doc.visibilityState = 'visible';
+  doc.fire('visibilitychange', {});
+  check('a hidden tab does not drain the clock', num(hud()[3]) >= clockBefore - 1,
+    `${clockBefore}s -> ${num(hud()[3])}s across 20s away`);
+
+  // Reduced motion must substitute, not just delete.
+  const css = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  const rmBlock = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
+  check('reduced motion does not blanket-disable every animation',
+    !/\*,\s*\*::before[^}]*animation:\s*none/.test(rmBlock), '');
+  check('the rejection cue survives reduced motion as an opacity fade',
+    /\.slots\.shake\s*{[^}]*reject-fade/.test(css), '');
+  check('rejection is never carried by motion alone',
+    /\.slots\.shake \.slot\s*{[^}]*border-color/.test(css), '');
+  check('the pulse is held at full strength rather than mid-fade',
+    /pulse-hold/.test(css), '');
 }
 
 console.log(fails === 0 ? '\nALL CHECKS PASSED' : `\n${fails} CHECK(S) FAILED`);

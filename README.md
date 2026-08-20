@@ -120,6 +120,7 @@ Open `http://localhost:8000`. A server is required — the code uses ES modules,
 ├── style.css             # Theme tokens, board, mode surfaces (dark + light, reduced-motion aware)
 ├── js/
 │   ├── engine.js         # Arithmetic, seeded PRNG, puzzle generation. No DOM — importable and testable on its own.
+│   ├── audio.js          # Synthesised cues, mute preference, threshold-crossing helper
 │   ├── daily.js          # Day numbering, mode rotation, seeds, share text, clipboard
 │   ├── ui.js             # All DOM rendering. Modes describe; this draws.
 │   ├── main.js           # Mode registry, shared clock, stats, keyboard routing
@@ -205,6 +206,35 @@ Shortening the search horizon makes it cheap and wrong: on a par-3 board a horiz
 flags 4.0 first moves as dead ends where a horizon of 5 flags 0.8 — it would grey out
 moves that actually win. The existing post-move warning stays, and now promotes the Undo
 button instead of scrolling past in the feed.
+
+## 🔉 Feel
+
+Sound is synthesised in the browser with Web Audio — no files, nothing to load, nothing to
+404. The toggle sits next to the difficulty selector and its state persists. Audio cannot
+start before you interact with the page anyway, which browsers enforce, so opening the tab
+is always silent.
+
+**Not every cue is an obituary.** A cue set of success / failure / win / lose is a
+scoreboard, not an instrument — all four fire after the outcome, when the tension is already
+resolved. Two cues here fire from a state delta *before* it: Sprint sounds a falling tone as
+the clock crosses half, a quarter and a tenth remaining, and Deduce warns you going *into*
+your last guess rather than after it. Threshold cues fire once per downward crossing, never
+per tick, which is the thing players mute a game to escape — and the crossing test is pure
+and unit-tested rather than hoped for.
+
+**Reduced motion substitutes rather than deletes.** The stylesheet used to carry a blanket
+`animation: none; transition: none`, which is the intuitive mistake: it removed channels
+without replacing them, and a rejected tile was signalled by the shake *and nothing else* —
+so with the setting on it produced no feedback at all. Now the identical duration is kept and
+only the trajectory is dropped, because without the arc drawing the eye you need at least as
+long to register a change, not less. Opacity and colour are exempt from WCAG 2.3.3 and are
+what carries the signal: the shake becomes an opacity fade of the same length, the target
+pulse is held at full strength instead of fading back, and rejection also takes a warning
+border so it is never carried by motion alone at any setting.
+
+**The clock stops when the tab does.** A timed run draining while you are looking elsewhere
+is a failure with no event — you come back to a run that ended without you. Sprint's ticker
+is wall-clock, so hiding the tab used to cost real seconds. Tested with 20 seconds away.
 
 ## 🛠️ Design notes
 

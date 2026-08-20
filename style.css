@@ -227,8 +227,68 @@ select, .btn {
   25% { transform: translateX(-6px); }
   75% { transform: translateX(6px); }
 }
+/*
+ * Reduced motion, done right.
+ *
+ * This used to be a blanket `animation: none; transition: none`, which is the
+ * intuitive mistake: it deleted channels without substituting anything. A
+ * rejected tile was signalled by the shake and nothing else, so with the setting
+ * on it produced no feedback at all.
+ *
+ * Two rules instead. Keep the identical total duration and drop only the
+ * trajectory — without the arc drawing the eye, the player needs at least as
+ * long to register the change, not less. And opacity and colour are exempt from
+ * WCAG 2.3.3, so they are what carries the signal once travel is gone.
+ */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .tile:hover:not(:disabled),
+  .tile:active:not(:disabled),
+  .slot,
+  .prompt .step { transform: none !important; }
+
+  .box:active { animation: none !important; }
+
+  /* Same 0.3s as the shake, carried by opacity instead of travel. */
+  .slots.shake { animation: reject-fade 0.3s ease both !important; }
+
+  /* Hold the pulse at full strength rather than letting it fade back —
+     with the movement gone, colour is all that is left to carry it. */
+  .hud-big.pulse .hud-value { animation: pulse-hold 0.4s steps(1) both !important; }
+}
+
+@keyframes reject-fade {
+  0%, 100% { opacity: 1; }
+  35%, 65% { opacity: 0.3; }
+}
+
+@keyframes pulse-hold {
+  0%, 99% { color: var(--gold); }
+  100% { color: var(--accent); }
+}
+
+/* Rejection is never carried by motion alone, at any motion setting: the slots
+   also take a warning border for the duration of the shake. */
+.slots.shake .slot { border-color: var(--warn); }
+
+/* ---------- value-change feedback ---------- */
+.prompt .step.latest { animation: step-in 0.28s ease; }
+@keyframes step-in {
+  0% { transform: translateY(-4px) scale(0.94); opacity: 0.4; }
+  100% { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .prompt .step.latest { animation: fade-in 0.28s ease; }
+}
+@keyframes fade-in { 0% { opacity: 0.3; } 100% { opacity: 1; } }
+
+.btn.nudge { animation: nudge 0.5s ease; }
+@keyframes nudge {
+  0%, 100% { transform: none; }
+  30% { transform: translateY(-3px); }
+  60% { transform: translateY(1px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn.nudge { animation: fade-in 0.5s ease; }
 }
 
 @media (max-width: 420px) {
@@ -390,3 +450,5 @@ select, .btn {
   resize: vertical; word-break: break-all;
 }
 .transfer-status { margin: 0.5rem 0 0; min-height: 1.2em; color: var(--accent); }
+
+.btn-icon { font-size: 0.82rem; padding: 0.5rem 0.7rem; }
