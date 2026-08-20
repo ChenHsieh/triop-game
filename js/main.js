@@ -61,11 +61,12 @@ function savePrefs() {
 function renderStats() {
   const stats = loadStats();
   const mine = stats.modes[current.id] || { best: 0, plays: 0, cleared: 0 };
+  const history = Daily.loadHistory();
   UI.setStats([
     { label: `Best — ${current.name}`, value: mine.best },
     { label: `Plays — ${current.name}`, value: mine.plays },
-    { label: `Cleared — ${current.name}`, value: mine.cleared },
-    { label: 'Lifetime solved', value: stats.solved },
+    { label: 'Daily streak', value: Daily.streak(Daily.dayNumber(), history) },
+    { label: 'Dailies played', value: Daily.daysPlayed(history) },
   ]);
 }
 
@@ -125,11 +126,14 @@ function renderShare() {
   box.hidden = false;
 
   const done = Daily.loadResult(dailyDay);
+  const run = Daily.streak(dailyDay);
+  const streakLine = run > 0 ? ` You are on a <strong>${run}-day streak</strong>.` : '';
+
   if (!done) {
     const note = document.createElement('p');
     note.className = 'daily-note';
     note.innerHTML = `Daily #${dailyDay} — <strong>${current.name}</strong>. ` +
-      'Everyone gets this exact board today. Your first result is the one that counts.';
+      'Everyone gets this exact board today. Your first result is the one that counts.' + streakLine;
     box.appendChild(note);
     return;
   }
@@ -146,6 +150,9 @@ function renderShare() {
   add('div', 'share-head', `TriOp #${done.day} · ${done.modeName}`);
   add('pre', 'share-grid', done.grid);
   add('div', 'share-detail', `${done.detail} — ${done.outcome}`);
+  // The streak lives here and in the stats panel, never on the copied card:
+  // a second number there would stop the card working as a currency.
+  if (run > 0) add('div', 'share-streak', `${run}-day streak`);
 
   const btn = document.createElement('button');
   btn.type = 'button';

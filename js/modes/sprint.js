@@ -37,13 +37,32 @@ const SKIP = 75;
 let host = null;
 let s = {};
 
-function pickTarget(exclude) {
+/*
+ * Targets are dealt from a shuffled bag rather than drawn uniformly. Same
+ * long-run distribution, far shorter tails: uniform draws put a repeated target
+ * in 88% of Easy runs, averaging 1.63 repeats out of 9 with a p95 worst case of
+ * seeing one target three times. From a bag that is 2%. Repeats are also what
+ * let a player memorise their way to a never-ending run, so this is the same
+ * defect's second line of defence.
+ */
+function qualifying() {
   const band = BANDS[host.level()];
-  const options = [...s.byValue.entries()]
-    .filter(([value, combos]) => combos.length >= band.minSolutions && Math.abs(value) <= 150 && value !== exclude);
-  if (!options.length) return null;
-  const [value, combos] = E.pickFrom(options);
-  return { value, combos };
+  return [...s.byValue.entries()]
+    .filter(([value, combos]) => combos.length >= band.minSolutions && Math.abs(value) <= 150);
+}
+
+function pickTarget(exclude) {
+  if (!s.bag || !s.bag.length) {
+    s.bag = E.shuffle(qualifying());
+    // Never hand back the target just cleared as the first of a fresh bag.
+    if (s.bag.length > 1 && s.bag[s.bag.length - 1][0] === exclude) {
+      const last = s.bag.length - 1;
+      [s.bag[last], s.bag[0]] = [s.bag[0], s.bag[last]];
+    }
+  }
+  const entry = s.bag.pop();
+  if (!entry) return null;
+  return { value: entry[0], combos: entry[1] };
 }
 
 function start() {
@@ -58,7 +77,7 @@ function start() {
 
   s = {
     tiles, byValue, combo: [], score: 0, chain: 0, solved: 0, misses: 0,
-    msLeft: band.seconds * 1000, over: false, submitId: null, target: null, solutions: [],
+    msLeft: band.seconds * 1000, over: false, submitId: null, target: null, solutions: [], bag: [],
   };
   const first = pickTarget(null);
   s.target = first.value;

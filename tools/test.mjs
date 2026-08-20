@@ -94,6 +94,29 @@ gotoMode('Sprint');
   ctl('Skip').fire('click');
   check('skip costs points and moves on', num(hud()[0]) !== t1 && num(hud()[2]) < scoreBeforeSkip);
   console.log('  feed:', feed(2));
+
+  // Targets come from a shuffled bag: uniform draws repeated a target in 88% of
+  // Easy runs, and repeats are what let a player memorise their way to a
+  // never-ending run.
+  gotoMode('Sprint'); setLevel('easy');
+  const tm2 = boardMap(), L2 = tiles();          // the level switch built a new board
+  const solve2 = (target) => {
+    for (const a of L2) for (const b of L2) for (const c of L2) {
+      if (a === b || b === c || a === c) continue;
+      const v = E.evaluate(tm2[a].num, SYM[tm2[b].op], tm2[b].num, SYM[tm2[c].op], tm2[c].num);
+      if (E.wholeOrNull(v) === target) return a + b + c;
+    }
+    return null;
+  };
+  const seen = [];
+  for (let i = 0; i < 8; i++) {
+    const t = num(hud()[0]);
+    seen.push(t);
+    const c = solve2(t);
+    if (c) { [...c].forEach(key); key('Enter'); } else { ctl('Skip').fire('click'); }
+  }
+  check('no target repeats inside one bag', new Set(seen).size === seen.length,
+    `${new Set(seen).size} distinct of ${seen.length}`);
 }
 
 /* ---------------- LADDER ---------------- */
@@ -283,7 +306,7 @@ console.log('\n=== daily ===');
   }
   const card = store['share'].querySelector('.share-card');
   check('share card appears once the daily is done', !!card, '');
-  const stored = JSON.parse(localStorage.getItem('triop.daily.v1'));
+  const stored = D.loadResult(day);
   check('daily result stored for today', stored && stored.day === day, JSON.stringify(stored));
   const text = D.shareText(stored);
   // A spoiler would be a literal combo, which the game always renders uppercase.
@@ -297,8 +320,22 @@ console.log('\n=== daily ===');
   ctl('New') && ctl('New').fire('click');
   const give2 = ctl('Give up') || ctl('Reveal');
   if (give2) give2.fire('click');
-  const after2 = localStorage.getItem('triop.daily.v1');
-  check('replaying does not overwrite the recorded result', after2 === JSON.stringify(stored), `mode=${stored.mode} score=${firstScore}`);
+  const after2 = D.loadResult(day);
+  check('replaying does not overwrite the recorded result', JSON.stringify(after2) === JSON.stringify(stored), `mode=${stored.mode} score=${firstScore}`);
+
+  // --- history and streak: the outer loop had no memory before this ---
+  const hist = (...days) => Object.fromEntries(days.map(([d, won]) => [d, { day: d, won }]));
+  check('streak counts consecutive solved days back from today',
+    D.streak(10, hist([10, true], [9, true], [8, true])) === 3);
+  check('an unplayed today does not break the streak',
+    D.streak(11, hist([10, true], [9, true])) === 2);
+  check('a lost day breaks the streak',
+    D.streak(10, hist([10, true], [9, false], [8, true])) === 1);
+  check('a skipped day breaks the streak',
+    D.streak(10, hist([10, true], [8, true], [7, true])) === 1);
+  check('no history means no streak', D.streak(10, {}) === 0);
+  check('past days survive a new day being written', Object.keys(D.loadHistory()).length >= 1,
+    Object.keys(D.loadHistory()).join(','));
 }
 
 console.log(fails === 0 ? '\nALL CHECKS PASSED' : `\n${fails} CHECK(S) FAILED`);

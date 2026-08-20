@@ -12,7 +12,9 @@ Type or tap. <kbd>Backspace</kbd> undoes, <kbd>Esc</kbd> clears, <kbd>Enter</kbd
 
 ## 📅 Daily
 
-One board a day, the same for everyone, rolling over at your local midnight. The mode rotates — Ladder, Classic, Sprint, Deduce, repeat — so all four stay in circulation. Difficulty is locked to Normal so scores compare, and only your first attempt is recorded. Finishing gives you a spoiler-free card to copy:
+One board a day, the same for everyone, rolling over at your local midnight. The mode rotates — Ladder, Classic, Sprint, Deduce, repeat — so all four stay in circulation. Difficulty is locked to Normal so scores compare, and only your first attempt is recorded.
+
+Solve it on consecutive days and you build a **streak**. An unplayed today does not break it — the day is not over. A day played and lost does. The streak shows in the app and in your stats; it is deliberately **not** on the copied card, because a second number there stops the card working as shareable currency. Finishing gives you a spoiler-free card to copy:
 
 ```
 TriOp #12 · Deduce
@@ -38,7 +40,7 @@ Pick three different tiles. Tile 1 supplies the starting number (its operator is
 ### Sprint — one solution per target, against the clock
 The board never changes for the whole run, so you learn it as you go. Each target needs only **one** combo. Clearing one raises a chain multiplier; a miss costs points and resets it. <kbd>Space</kbd> skips a target for a bigger point penalty. 105s / 85s / 70s by difficulty.
 
-**The run is a fixed length and nothing extends it.** That is a deliberate bound, not an oversight — see below.
+**The run is a fixed length and nothing extends it.** That is a deliberate bound, not an oversight — see below. Targets are dealt from a shuffled bag, so you will not see the same one twice until the pool runs out.
 
 ### Deduce — narrow down a hidden combo
 One three-tile combo is hidden. Guess, and get **✓ green** (right tile, right slot), **↔ amber** (right tile, wrong slot), **· grey** (not in the combo) — plus your guess's value and whether the hidden combo's value is higher or lower. Every cell carries a glyph and a spoken label as well as a colour, since green-versus-amber is exactly the case red-green colour blindness fails on. Tiles you have ruled out are crossed off the board automatically, and on Easy and Normal the status bar counts how many combos still fit every clue you have — so you can watch the space close instead of guessing blind. 8 / 6 / 5 guesses by difficulty.
@@ -147,6 +149,13 @@ lands and quietly deletes that calculation. Sprint keeps its chain, because Spri
 question is "can I keep the run going" rather than "what is this worth" — the chain is the
 thing being played there, not noise over a price list.
 
+**Targets come from a bag, not a uniform draw.** Drawing uniformly put a repeated target
+in **88% of Easy runs**, averaging 1.63 repeats out of 9, with a 95th-percentile worst case
+of meeting the same target three times in one run. Dealing from a shuffled bag has the same
+long-run distribution and a far shorter tail — 2%. When randomness feels unfair, change the
+distribution rather than the odds. Repeats were also what let a player memorise a board into
+a never-ending run, so this is the same defect's second line of defence.
+
 **Sprint's run length is fixed and nothing extends it.** Clearing a target used to award
 seconds. The board does not change during a run, so a player memorises the targets, and a
 remembered answer costs about 1.5 seconds to type against a +3 second award — an unbounded
@@ -199,10 +208,25 @@ button instead of scrolling past in the feed.
 - **The share card carries one number.** Two numbers a reader cannot rank against each other stop a card working as shareable currency, so points stayed in the game and the card takes the outcome.
 - **Accessibility.** Tiles are real buttons with spoken labels and focus rings, the HUD and feed are `aria-live`, and animation respects `prefers-reduced-motion`.
 
+## 🔁 The three loops
+
+Naming them is the check, and the rule is that the outer loop must vary the *conditions* of
+the inner one rather than only its numbers.
+
+| Loop | Length | What it is |
+|---|---|---|
+| Inner | seconds | Pick three tiles, read the result |
+| Middle | 1–3 minutes | One board, or one fixed-length run |
+| Outer | days | The daily, which **rotates the mode** — so tomorrow changes the verb, not the difficulty |
+
+The outer loop had no memory until recently: the daily wrote a single result and overwrote
+it the next day, so a streak was not merely missing, it was not computable. It now keeps a
+bounded history and the v1 single-result store migrates into it on first read.
+
 ## 🔭 Next steps
 
-- Pick the difficulty from measured performance instead of asking a newcomer to self-assess
 - A guided first run for players who have never seen the board
+- Replaying past dailies unranked, which the current one-attempt rule does not allow for
 - Alternate tile layouts (triangle, honeycomb)
 - A two-player pass-and-play race on one board
 

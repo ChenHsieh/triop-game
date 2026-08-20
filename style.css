@@ -371,3 +371,9 @@ select, .btn {
 .gcell.hit .gmark { color: var(--accent); }
 .gcell.moved .gmark { color: var(--gold); }
 .gcell.off .gmark { color: var(--muted); }
+
+.share-streak {
+  font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--gold); font-weight: 700;
+}
+.daily-note strong { color: var(--accent); }
