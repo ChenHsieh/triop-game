@@ -10,6 +10,8 @@ Twelve tiles labelled `Q W E R A S D F Z X C V` — the left-hand keyboard block
 
 Type or tap. <kbd>Backspace</kbd> undoes, <kbd>Esc</kbd> clears, <kbd>Enter</kbd> submits.
 
+In the three-tile modes the **first tile contributes its number only** — its operator is never read. So while that slot is the one you are filling, every sign on the board is dimmed, and they come back for slots 2 and 3 where they decide the answer. Ladder never dims them, because there the operator applies to the running total on every step.
+
 ## 📅 Daily
 
 One board a day, the same for everyone, rolling over at your local midnight. The mode rotates — Ladder, Classic, Sprint, Deduce, repeat — so all four stay in circulation. Difficulty is locked to Normal so scores compare, and only your first attempt is recorded.

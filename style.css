@@ -452,3 +452,13 @@ select, .btn {
 .transfer-status { margin: 0.5rem 0 0; min-height: 1.2em; color: var(--accent); }
 
 .btn-icon { font-size: 0.82rem; padding: 0.5rem 0.7rem; }
+
+/*
+ * The first tile of a combo contributes its number and nothing else, so while
+ * that slot is the one being filled, the operators on the board mean nothing.
+ * Dim the signs until a first tile is down, then bring them back for slots 2
+ * and 3 where they decide the answer. Ladder never gets this: there the
+ * operator applies to the running total on every single step.
+ */
+.tile .op .sym { transition: opacity 0.18s ease; }
+.tile.op-muted .op .sym { opacity: 0.28; }

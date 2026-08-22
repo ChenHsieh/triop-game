@@ -186,6 +186,10 @@ function render() {
     const known = s.guesses.some((g) => [...g.combo].some((l, i) => l === letter && g.marks[i] !== 'off'));
     if (dead && !known) classes.push('dead');
     if (known) classes.push('known');
+    // Slot 1 contributes its number only — evaluate() never reads its operator.
+    // While that slot is the one being filled, every sign on the board is
+    // irrelevant, so showing twelve of them at full strength mis-signals.
+    if (!s.combo.length) classes.push('op-muted');
     return { classes, disabled: s.over };
   });
   UI.setControls([

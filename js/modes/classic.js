@@ -196,6 +196,10 @@ function render() {
     if (idx !== -1) classes.push('used');
     if (idx === 0) classes.push('first');
     if (s.hinted.has(letter)) classes.push('hinted');
+    // Slot 1 contributes its number only — evaluate() never reads its operator.
+    // While that slot is the one being filled, every sign on the board is
+    // irrelevant, so showing twelve of them at full strength mis-signals.
+    if (!s.combo.length) classes.push('op-muted');
     return { classes, disabled: s.over };
   });
   UI.setControls([

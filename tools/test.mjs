@@ -302,8 +302,15 @@ console.log('\n=== daily ===');
   if (give) { give.fire('click'); }
   else {
     // sprint or deduce: burn the budget
+    // Distinct guesses each time: a repeated one is rejected without consuming
+    // the budget, so reusing the same triple would never end the round.
     const L = tiles(); let guard = 0;
-    while (guard++ < 40 && !store['share'].querySelector('.share-card')) { key(L[0]); key(L[1]); key(L[2]); key('Enter'); }
+    outerBurn:
+    for (const a of L) for (const b2 of L) for (const c of L) {
+      if (a === b2 || b2 === c || a === c) continue;
+      if (store['share'].querySelector('.share-card') || guard++ > 40) break outerBurn;
+      key(a); key(b2); key(c); key('Enter');
+    }
   }
   const card = store['share'].querySelector('.share-card');
   check('share card appears once the daily is done', !!card, '');
@@ -385,6 +392,26 @@ console.log('\n=== restore codes ===');
   check('transfer panel rendered', !!store['transfer'].querySelector('.transfer-field'), '');
   const buttons = store['transfer'].querySelectorAll('btn');
   check('copy and restore controls exist', store['transfer'].children.length >= 4, `${store['transfer'].children.length} nodes`);
+}
+
+/* ---------------- the first slot ignores its operator ---------------- */
+console.log('\n=== operator signalling ===');
+{
+  const muted = () => store['board'].children.filter((t) => t.classList.contains('op-muted')).length;
+  for (const mode of ['Classic', 'Sprint', 'Deduce']) {
+    gotoMode(mode);
+    if (mode !== 'Sprint') setLevel('normal');
+    check(`${mode}: every sign is dimmed while slot 1 is being filled`, muted() === 12, `${muted()} of 12`);
+    key(tiles()[0]);
+    check(`${mode}: signs return once slot 1 is down`, muted() === 0, `${muted()} of 12`);
+    key('Escape');
+    check(`${mode}: clearing back to empty dims them again`, muted() === 12, `${muted()} of 12`);
+  }
+  // Ladder must never dim: there the operator applies on every step.
+  gotoMode('Ladder'); setLevel('normal');
+  check('Ladder never dims its operators', muted() === 0, `${muted()} of 12`);
+  key(tiles().find((l) => !store['board'].children.find((b2) => b2.dataset.letter === l).disabled) || tiles()[0]);
+  check('Ladder still shows them mid-climb', muted() === 0, `${muted()} of 12`);
 }
 
 /* ---------------- feel: sound and motion ---------------- */
