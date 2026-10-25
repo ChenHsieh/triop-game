@@ -41,7 +41,7 @@
       'details.why-exists>summary{min-height:44px!important;display:flex;align-items:center;cursor:pointer;font-size:max(16px,1em)!important;text-decoration:underline;text-underline-offset:3px}',
       '[data-why-exists] .why-exists-text,[data-why-exists] .why-exists-source,.why-exists-card .why-exists-text,.why-exists-card .why-exists-source{font-size:max(16px,1em)!important;line-height:1.45;margin:6px 0;overflow-wrap:anywhere;text-align:start}',
       '.why-exists-source a{color:inherit;text-decoration:underline}',
-      'button.why-exists-btn{font:inherit;font-size:max(16px,1em)!important;color:inherit;background:transparent;border:0;padding:0 10px;min-height:44px!important;min-width:44px!important;text-decoration:underline;text-underline-offset:3px;cursor:pointer;flex:0 0 auto}',
+      'button.why-exists-btn{font:inherit;font-size:max(16px,1em)!important;color:inherit;background:transparent;border:0;padding:0 10px;min-height:44px!important;min-width:44px!important;text-decoration:underline;text-underline-offset:3px;cursor:pointer;flex:0 1 auto;white-space:normal;max-width:100%;text-align:center}',
       'p.why-exists-foot{margin:16px 0;text-align:center}',
       '.why-exists-layer{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.45)}',
       '.why-exists-layer[hidden]{display:none}',
