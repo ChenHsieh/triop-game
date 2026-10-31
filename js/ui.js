@@ -180,7 +180,7 @@ export function say(html, cls = 'note') {
 
 export const clearLog = () => {
   dom.log.innerHTML = '';
-  if (dom.status) dom.status.innerHTML = '';
+  if (dom.status) { dom.status.innerHTML = ''; dom.status.className = 'status'; }
 };
 
 export function setStats(cells) {

@@ -67,12 +67,12 @@ const S = {
   rule_deduce: ['✓ right place. ↔ wrong place. · not in it.', '✓ 位置對　↔ 位置錯　· 不在裡面'],
 
   /* HUD */
-  hud_now: ['Now', '現在'], hud_target: ['Target', '目標'], hud_tiles: ['Tiles', '用牌'],
+  hud_now: ['Now', '現在'], hud_target: ['Target', '目標'], hud_tiles: ['Tiles / par', '步／標準'],
   hud_time: ['Time', '時間'], hud_found: ['Found', '找到'], hud_score: ['Score', '分數'],
   hud_cleared: ['Cleared', '過關'], hud_timeleft: ['Time left', '剩餘'],
   hud_hidden: ['Hidden', '藏著'], hud_left: ['Guesses left', '剩幾次'],
   hud_possible: ['Still possible', '還可能'], hud_guessed: ['Guessed', '已猜'],
-  par_sub: ['par {par}, best {opt}', '標準 {par}，最佳 {opt}'],
+  par_sub: ['best {opt}', '最佳 {opt}'],
   exist_sub: ['{n} exist', '共 {n} 組'],
   chain_sub: ['chain ×{n}', '連擊 ×{n}'],
 

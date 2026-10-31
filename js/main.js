@@ -126,6 +126,8 @@ function newRound() {
   if (daily) setSeed(Daily.seedFor(dailyDay, current.id));
   else clearSeed();
   current.start();
+  // The opening line repeats the HUD; it stays in the log, not on the screen.
+  if (UI.dom.status) { UI.dom.status.innerHTML = ''; UI.dom.status.className = 'status'; }
   renderStats();
   renderShare();
 }
@@ -463,6 +465,8 @@ function wireSheets() {
   });
   document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', closeSheet));
   UI.onMoreAction(closeSheet);
+  // A rule callout is gone after the first move.
+  UI.dom.board.addEventListener('click', () => { if (!inLesson) UI.dom.callout.hidden = true; });
   $('lang').addEventListener('click', () => {
     setLang(lang() === 'zh' ? 'en' : 'zh');
     UI.resetControls();
