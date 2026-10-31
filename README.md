@@ -4,6 +4,12 @@
 
 Play: 👉 https://chenhsieh.github.io/triop-game/
 
+## 🌑 The look and the first minute
+
+A tank at night: black water, white hand-drawn outlines, and one lit yellow-green for the thing you are changing (your running number, the tiles in your hand). The mascot is a triops, the three-eyed tadpole shrimp the game is named after; it lights up and swims when you win. Everything fits one phone screen; modes, rules, records and settings sit one tap away under the mode button and More.
+
+A first visit plays a short lesson instead of showing rules: tap the one lit tile, try a ÷5 that would leave a fraction and see it shut, then walk a real two-step ladder. Under 50 words in all, skippable, and replayable from More. English and Traditional Chinese (More → 中文).
+
 ## 🎛 The board
 
 Twelve tiles labelled `Q W E R A S D F Z X C V` — the left-hand keyboard block, so your fingers already know the layout. Each tile carries an operator and a number: `+3`, `×2`, `÷4`, `−1`. Every board is generated with three tiles per operator, no duplicate op+number pair, and no identity tiles (`×1`, `÷1`).
@@ -19,13 +25,15 @@ One board a day, the same for everyone, rolling over at your local midnight. The
 Solve it on consecutive days and you build a **streak**. An unplayed today does not break it — the day is not over. A day played and lost does. The streak shows in the app and in your stats; it is deliberately **not** on the copied card, because a second number there stops the card working as shareable currency. Finishing gives you a spoiler-free card to copy:
 
 ```
-TriOp #12 · Deduce
+🦐 TriOp #12 Deduce
 ⬛🟨⬛
 🟨🟩⬛
 🟩🟩🟩
-3/6 · 420 pts
+3/6 · fed, just in time
 https://chenhsieh.github.io/triop-game/
 ```
+
+The last line rotates by how the run went (clean, close, messy) and comes in English and Traditional Chinese. It never shows a combo.
 
 The board is generated from a seeded PRNG keyed on the day and mode, so it is reproducible without a server — there is no backend, and nothing leaves your browser.
 
