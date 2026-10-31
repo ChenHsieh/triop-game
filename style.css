@@ -72,9 +72,8 @@ button { font: inherit; color: inherit; }
   transform: rotate(90deg);
   overflow: visible;
 }
-.mascot .eye { fill: currentColor; stroke: none; }
 .mascot.swim { animation: swim 0.9s cubic-bezier(.3, .7, .3, 1); }
-.mascot.swim .shell { fill: var(--lit); }
+.mascot.swim { --shell: var(--lit); --eye: var(--lit-ink); }
 @keyframes swim {
   0% { transform: rotate(90deg) translateY(0); }
   35% { transform: rotate(80deg) translateY(-8px); }
@@ -376,7 +375,7 @@ details > summary { min-height: 44px; display: flex; align-items: center; cursor
 /* result */
 .result { align-items: center; text-align: center; }
 .result .mascot.big { width: 96px; height: 96px; stroke-width: 3.5; }
-.result-layer.won .mascot.big .shell { fill: var(--lit); }
+.result-layer.won .mascot.big { --shell: var(--lit); --eye: var(--lit-ink); }
 .result-layer.won .mascot.big { animation: swim 1.2s cubic-bezier(.3, .7, .3, 1); }
 .result-line { margin: 0; font-size: var(--text-body); }
 .result-actions { display: flex; flex-direction: column; gap: 8px; align-self: stretch; }
@@ -411,9 +410,21 @@ details.why-exists { border-top: 0; }
   .controls .btn { padding: 0 4px; }
 }
 
+/* Reduced motion substitutes, it does not delete: travel becomes a fade or a held state. */
+.slots.shake .slot { border-color: var(--line); border-style: solid; }
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .tile, .tile::before, .btn, .barbtn, .sheet, .mascot { transition: none !important; animation: none !important; }
+  .tile:active:not(:disabled) { transform: rotate(var(--tilt, 0deg)) !important; }
+  .tile.beckon::before { animation: none !important; border-width: 4px; }
+  .tile.nope { animation: reject-fade 0.3s ease both !important; }
+  /* Same 0.3s as the shake, carried by opacity instead of travel. */
+  .slots.shake { animation: reject-fade 0.3s ease both !important; }
+  /* Hold the pulse at full strength rather than letting it fade back. */
+  .hud-big.pulse .hud-value { animation: pulse-hold 0.4s steps(1) both !important; }
+  .btn.nudge { animation: reject-fade 0.5s ease reverse !important; }
 }
+@keyframes reject-fade { 0%, 100% { opacity: 1; } 35%, 65% { opacity: 0.3; } }
+@keyframes pulse-hold { 0%, 99% { outline: 3px solid var(--line); } 100% { outline: 0 solid transparent; } }
 @media (prefers-contrast: more) {
   :root { --hair: 3px; --faint: #8a877e; }
 }
