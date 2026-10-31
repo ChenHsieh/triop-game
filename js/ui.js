@@ -6,7 +6,10 @@ const el = (id) => document.getElementById(id);
 
 export const dom = {
   tabs: el('tabs'),
-  blurb: el('blurb'),
+  goal: el('goal'),
+  callout: el('callout'),
+  status: el('status'),
+  moreControls: el('more-controls'),
   hud: el('hud'),
   prompt: el('prompt'),
   slots: el('slots'),
@@ -37,16 +40,17 @@ export function setHud(cells) {
   cells.forEach((cell) => {
     const box = document.createElement('div');
     box.className = 'hud-cell' + (cell.big ? ' hud-big' : '') + (cell.warn ? ' hud-warn' : '');
+    if (cell.id) box.dataset.hud = cell.id;
     box.innerHTML =
       `<span class="hud-label">${cell.label}</span>` +
       `<strong class="hud-value">${cell.value}</strong>` +
       (cell.sub ? `<span class="hud-sub">${cell.sub}</span>` : '');
-    hudValues.set(cell.label, box);
+    hudValues.set(cell.id || cell.label, box);
     dom.hud.appendChild(box);
   });
 }
 
-/** Update one HUD cell in place — used by the ticker so buttons keep focus. */
+/** Update one HUD cell in place (by id), used by the ticker so buttons keep focus. */
 export function setHudValue(label, value, warn) {
   const box = hudValues.get(label);
   if (!box) return;
@@ -75,7 +79,7 @@ export function renderBoard(tiles, letters, onPick) {
     btn.className = 'tile';
     btn.dataset.letter = letter;
     btn.innerHTML =
-      `<span class="key">${letter}</span>` +
+      `<span class="key" aria-hidden="true">${letter.toUpperCase()}</span>` +
       `<span class="op"><span class="sym">${SYMBOL[t.op]}</span>${t.num}</span>`;
     btn.setAttribute('aria-label', `Tile ${letter.toUpperCase()}, ${opWord(t.op)} ${t.num}`);
     btn.addEventListener('click', () => { onPick(letter); btn.blur(); });
@@ -141,17 +145,23 @@ export function setControls(buttons, onAction) {
   if (sig === controlsSig) return;
   controlsSig = sig;
   dom.controls.innerHTML = '';
+  if (dom.moreControls) dom.moreControls.innerHTML = '';
   buttons.forEach((b) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'btn' + (b.primary ? ' btn-primary' : '') + (b.quiet ? ' btn-quiet' : '')
       + (b.nudge ? ' nudge' : '');
+    btn.dataset.action = b.id;
     btn.innerHTML = b.label + (b.badge !== undefined ? ` <span class="badge">${b.badge}</span>` : '');
     btn.disabled = !!b.disabled;
-    btn.addEventListener('click', () => { onAction(b.id); btn.blur(); });
-    dom.controls.appendChild(btn);
+    btn.addEventListener('click', () => { onAction(b.id); btn.blur(); if (b.more && onMore) onMore(); });
+    (b.more && dom.moreControls ? dom.moreControls : dom.controls).appendChild(btn);
   });
 }
+let onMore = null;
+/** Called after a button inside the More sheet acts, so the sheet can close. */
+export const onMoreAction = (f) => { onMore = f; };
+export const resetControls = () => { controlsSig = ''; };
 
 export const showLevel = (visible) => { dom.levelField.hidden = !visible; };
 
@@ -160,6 +170,7 @@ export const showLevel = (visible) => { dom.levelField.hidden = !visible; };
 export const setPanel = (html) => { dom.panel.innerHTML = html; };
 
 export function say(html, cls = 'note') {
+  if (dom.status) { dom.status.innerHTML = html; dom.status.className = 'status ' + cls; }
   const row = document.createElement('div');
   row.className = 'row';
   row.innerHTML = `<span class="${cls}">${html}</span>`;
@@ -167,13 +178,10 @@ export function say(html, cls = 'note') {
   while (dom.log.childElementCount > 60) dom.log.lastElementChild.remove();
 }
 
-export const clearLog = () => { dom.log.innerHTML = ''; };
-
-export function setRules(title, items) {
-  dom.rules.innerHTML =
-    `<summary>How to play — ${title}</summary><ul>` +
-    items.map((i) => `<li>${i}</li>`).join('') + '</ul>';
-}
+export const clearLog = () => {
+  dom.log.innerHTML = '';
+  if (dom.status) { dom.status.innerHTML = ''; dom.status.className = 'status'; }
+};
 
 export function setStats(cells) {
   dom.stats.innerHTML = cells
@@ -188,7 +196,13 @@ export function setTabs(modes, activeId, onPick) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'tab' + (m.id === activeId ? ' on' : '');
+    btn.dataset.mode = m.id;
     btn.textContent = m.name;
+    if (m.sub) {
+      const sub = document.createElement('small');
+      sub.textContent = m.sub;
+      btn.appendChild(sub);
+    }
     btn.setAttribute('aria-pressed', String(m.id === activeId));
     btn.addEventListener('click', () => { onPick(m.id); btn.blur(); });
     dom.tabs.appendChild(btn);

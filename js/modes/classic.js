@@ -3,6 +3,7 @@
 import * as E from '../engine.js';
 import * as UI from '../ui.js';
 import { cue } from '../audio.js';
+import { t } from '../i18n.js';
 
 /*
  * `required` is the real difficulty lever, not the size of the solution set —
@@ -44,10 +45,9 @@ function start() {
   };
   UI.clearLog();
   UI.renderBoard(s.tiles, E.LETTERS, pick);
-  UI.setBoardNote('First tile gives the <em>starting number</em> — its operator is ignored.');
   UI.say(s.need < s.solutions.length
-    ? `New ${host.level()} board — find <strong>${s.need}</strong> of the ${s.solutions.length} combos that hit ${s.target}.`
-    : `New ${host.level()} board — find <strong>all ${s.need}</strong> combo${s.need === 1 ? '' : 's'} that hit ${s.target}.`);
+    ? t('c_new', { need: s.need, n: s.solutions.length, target: s.target })
+    : t('c_new_all', { need: s.need, target: s.target }));
   render();
 }
 
@@ -83,7 +83,7 @@ function submit() {
   const whole = E.wholeOrNull(value);
 
   if (s.tried.has(combo)) {
-    UI.say(`<span class="mono">${label}</span> — already tried`);
+    UI.say(t('tried', { k: `<span class="mono">${label}</span>` }));
     UI.flashSlots('shake');
     cue.reject();
     clearCombo();
@@ -95,15 +95,15 @@ function submit() {
   if (whole === s.target) {
     s.found.add(combo);
     s.score += SCORE.hit;
-    UI.say(`<span class="mono">${label}</span> = ${s.target} &nbsp;+${SCORE.hit}`, 'ok');
+    UI.say(t('hit', { k: `<span class="mono">${label}</span>`, target: s.target, p: SCORE.hit }), 'ok');
     UI.flashSlots('good');
     cue.hit();
     UI.pulseHud();
   } else {
     s.misses += 1;
     s.score -= SCORE.miss;
-    const off = whole === null ? '' : ` (off by ${Math.abs(whole - s.target)})`;
-    UI.say(`<span class="mono">${label}</span> = ${E.fmt(value)}${off} &nbsp;−${SCORE.miss}`, 'no');
+    const off = whole === null ? '' : t('off_by', { n: Math.abs(whole - s.target) });
+    UI.say(t('miss', { k: `<span class="mono">${label}</span>`, v: E.fmt(value), off, p: SCORE.miss }), 'no');
     UI.flashSlots('bad');
     cue.miss();
   }
@@ -124,7 +124,7 @@ function hint() {
   s.hinted.add(pickOne[0]);
   s.hinted.add(pickOne[1]);
   host.clock.start();
-  UI.say(`Hint: a solution starts <span class="mono">${pickOne.slice(0, 2).toUpperCase()}_</span> &nbsp;−${SCORE.hint}`, 'big');
+  UI.say(t('c_hint', { k: `<span class="mono">${pickOne.slice(0, 2).toUpperCase()}</span>`, cost: SCORE.hint }), 'big');
   render();
 }
 
@@ -134,17 +134,16 @@ function finish() {
   const secs = host.clock.seconds();
   const bonus = Math.max(0, BANDS[host.level()].timeBonus - 5 * secs);
   s.score += bonus;
-  UI.say(`Board cleared in ${host.clock.label()} — time bonus +${bonus}`, 'big');
   if (s.misses === 0 && s.hintsUsed === 0) {
     s.score += SCORE.perfect;
-    UI.say(`Flawless: no misses, no hints — +${SCORE.perfect}`, 'big');
+    UI.say(t('c_flawless', { p: SCORE.perfect }), 'big');
   }
   s.score = Math.max(0, s.score);
   cue.win();
   const spare = s.solutions.length - s.found.size;
-  if (spare > 0) UI.say(`${spare} other combo${spare === 1 ? '' : 's'} also worked: <span class="mono">${s.solutions.filter((x) => !s.found.has(x)).map((x) => x.toUpperCase()).join(' ')}</span>`);
+  if (spare > 0) UI.say(t('c_others', { list: `<span class="mono">${s.solutions.filter((x) => !s.found.has(x)).map((x) => x.toUpperCase()).join(' ')}</span>` }));
   host.award({ score: s.score, solved: s.found.size, cleared: true });
-  UI.say(`Final score ${s.score}. Hit “New board” to go again.`, 'ok');
+  UI.say(t('c_clear', { time: host.clock.label(), score: s.score }), 'ok');
 }
 
 function reveal() {
@@ -155,20 +154,20 @@ function reveal() {
   s.score = Math.max(0, s.score);
   cue.lose();
   const missed = s.solutions.filter((x) => !s.found.has(x));
-  UI.say(`Revealed — ${missed.length} missed: <span class="mono">${missed.map((x) => x.toUpperCase()).join(' ') || '—'}</span>`, 'big');
+  UI.say(t('c_reveal', { list: `<span class="mono">${missed.map((x) => x.toUpperCase()).join(' ') || '-'}</span>` }), 'big');
   host.award({ score: s.score, solved: s.found.size, cleared: false });
   render();
 }
 
 function exprHTML(combo, withResult) {
-  if (!combo.length) return '<span class="muted">Pick a tile to start</span>';
-  const t = combo.map((l) => s.tiles[l]);
-  let out = String(t[0].num);
-  if (combo.length >= 2) out += ` ${E.SYMBOL[t[1].op]} ${t[1].num}`;
+  if (!combo.length) return `<span class="muted">${t('pick_start')}</span>`;
+  const T = combo.map((l) => s.tiles[l]);
+  let out = String(T[0].num);
+  if (combo.length >= 2) out += ` ${E.SYMBOL[T[1].op]} ${T[1].num}`;
   if (combo.length === 3) {
-    out = E.prec(t[2].op) > E.prec(t[1].op)
-      ? `${t[0].num} ${E.SYMBOL[t[1].op]} <span class="paren">(</span>${t[1].num} ${E.SYMBOL[t[2].op]} ${t[2].num}<span class="paren">)</span>`
-      : `${out} ${E.SYMBOL[t[2].op]} ${t[2].num}`;
+    out = E.prec(T[2].op) > E.prec(T[1].op)
+      ? `${T[0].num} ${E.SYMBOL[T[1].op]} <span class="paren">(</span>${T[1].num} ${E.SYMBOL[T[2].op]} ${T[2].num}<span class="paren">)</span>`
+      : `${out} ${E.SYMBOL[T[2].op]} ${T[2].num}`;
     if (withResult) out += ` = <span class="res">${E.fmt(E.comboValue(s.tiles, combo.join('')))}</span>`;
   }
   return out;
@@ -176,10 +175,10 @@ function exprHTML(combo, withResult) {
 
 function render() {
   UI.setHud([
-    { label: 'Target', value: s.target, big: true },
-    { label: 'Found', value: `${s.found.size}/${s.need}`, sub: s.need < s.solutions.length ? `${s.solutions.length} exist` : '' },
-    { label: 'Score', value: s.score },
-    { label: 'Time', value: host.clock.label() },
+    { id: 'target', label: t('hud_target'), value: s.target, big: true },
+    { id: 'found', label: t('hud_found'), value: `${s.found.size}/${s.need}`, sub: s.need < s.solutions.length ? t('exist_sub', { n: s.solutions.length }) : '' },
+    { id: 'score', label: t('hud_score'), value: s.score },
+    { id: 'time', label: t('hud_time'), value: host.clock.label() },
   ]);
   UI.setPrompt(exprHTML(s.combo, s.combo.length === 3));
   UI.setSlots(
@@ -203,17 +202,15 @@ function render() {
     return { classes, disabled: s.over };
   });
   UI.setControls([
-    { id: 'hint', label: 'Hint', badge: s.hintsLeft, disabled: s.over || s.hintsLeft <= 0 },
-    { id: 'reveal', label: 'Reveal & end', quiet: true, disabled: s.over },
-    { id: 'new', label: 'New board', primary: true },
+    { id: 'hint', label: t('hint'), badge: s.hintsLeft, disabled: s.over || s.hintsLeft <= 0 },
+    { id: 'reveal', label: t('reveal'), quiet: true, more: true, disabled: s.over },
+    { id: 'new', label: t('new_board'), primary: true, more: !s.over },
   ], action);
 
-  const pips = Array.from({ length: s.need }, (_, i) => `<span class="pip${i < s.found.size ? ' on' : ''}"></span>`).join('');
   const shown = s.revealed ? s.solutions : [...s.found];
-  const chips = shown.length
-    ? shown.map((c) => `<span class="chip${s.found.has(c) ? '' : ' missed'}">${c.toUpperCase()}</span>`).join('')
-    : '<span class="empty">None yet.</span>';
-  UI.setPanel(`<h2 class="section-title">Solutions <span class="pips">${pips}</span></h2><div class="chips">${chips}</div>`);
+  UI.setPanel(shown.length
+    ? `<div class="chips">${shown.map((c) => `<span class="chip${s.found.has(c) ? '' : ' missed'}">${c.toUpperCase()}</span>`).join('')}</div>`
+    : '');
 }
 
 /** End-of-round result for the daily share card. */
@@ -250,16 +247,8 @@ function key(e) {
 
 export default {
   id: 'classic',
-  name: 'Classic',
-  blurb: 'Find <em>every</em> three-tile combo that hits the target.',
+  get name() { return t('mode_classic'); },
   usesLevel: true,
-  rulesTitle: 'Classic',
-  rules: [
-    'Pick <strong>three different tiles</strong>. Tile 1 supplies the starting number — its operator is ignored.',
-    'Tiles 2 and 3 apply their operator under normal precedence (<code>×</code> and <code>÷</code> before <code>+</code> and <code>−</code>). The live line shows the implied parentheses.',
-    'Clear the board by finding the required number of combos that land exactly on the target — shown as <em>Found</em> in the status bar.',
-    'Misses cost points, so sweeping every combination is a losing strategy.',
-  ],
   init(h) { host = h; },
   start, pick, key, render, summary,
 };

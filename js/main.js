@@ -8,11 +8,14 @@ import classic from './modes/classic.js';
 import sprint from './modes/sprint.js';
 import ladder from './modes/ladder.js';
 import deduce from './modes/deduce.js';
+import lesson, { lessonDone } from './lesson.js';
+import { t, lang, setLang, rules as rulesFor } from './i18n.js';
 
 // Ladder leads: the running total is always on screen and illegal moves are
 // greyed out, so it is the mode a newcomer can actually start with.
 const MODES = [ladder, classic, sprint, deduce];
-const DAILY_TAB = { id: 'daily', name: 'Daily' };
+const DAILY_TAB = { id: 'daily', get name() { return t('mode_daily'); } };
+const SEEN_KEY = 'triop.seen.v1';
 const STATS_KEY = 'triop.stats.v2';
 const PREFS_KEY = 'triop.prefs.v1';
 
@@ -64,10 +67,10 @@ function renderStats() {
   const mine = stats.modes[current.id] || { best: 0, plays: 0, cleared: 0 };
   const history = Daily.loadHistory();
   UI.setStats([
-    { label: `Best — ${current.name}`, value: mine.best },
-    { label: `Plays — ${current.name}`, value: mine.plays },
-    { label: 'Daily streak', value: Daily.streak(Daily.dayNumber(), history) },
-    { label: 'Dailies played', value: Daily.daysPlayed(history) },
+    { label: `${t('best')}: ${current.name}`, value: mine.best },
+    { label: `${t('plays')}: ${current.name}`, value: mine.plays },
+    { label: t('streak'), value: Daily.streak(Daily.dayNumber(), history) },
+    { label: t('dailies'), value: Daily.daysPlayed(history) },
   ]);
 }
 
@@ -77,7 +80,9 @@ const host = {
   level: () => level,
   clock,
   restart() { newRound(); },
+  celebrate() { celebrate(); },
   award({ score = 0, solved = 0, cleared = false }) {
+    if (current.lesson) return;
     const stats = loadStats();
     const mine = stats.modes[current.id] || { best: 0, plays: 0, cleared: 0 };
     mine.best = Math.max(mine.best, score);
@@ -88,6 +93,10 @@ const host = {
     saveStats(stats);
     renderStats();
     if (daily) recordDaily();
+    // The result sheet waits for the mode's own closing lines and the win motion.
+    if (cleared) celebrate();
+    clearTimeout(resultTimer);
+    resultTimer = setTimeout(() => showResult(cleared), cleared ? 900 : 500);
   },
 };
 
@@ -104,6 +113,9 @@ function recordDaily() {
 }
 
 MODES.forEach((m) => m.init(host));
+lesson.init(host, () => { inLesson = false; current = MODES[0]; daily = false; paintChrome(); newRound(); });
+let inLesson = false;
+let resultTimer = null;
 
 /* ---------- round + mode lifecycle ---------- */
 
@@ -114,6 +126,8 @@ function newRound() {
   if (daily) setSeed(Daily.seedFor(dailyDay, current.id));
   else clearSeed();
   current.start();
+  // The opening line repeats the HUD; it stays in the log, not on the screen.
+  if (UI.dom.status) { UI.dom.status.innerHTML = ''; UI.dom.status.className = 'status'; }
   renderStats();
   renderShare();
 }
@@ -122,55 +136,86 @@ function newRound() {
 
 function renderShare() {
   const box = UI.dom.share;
+  if (!box) return;
   box.innerHTML = '';
-  if (!daily) { box.hidden = true; return; }
+  const done = daily && Daily.loadResult(dailyDay);
+  if (!done) { box.hidden = true; return; }
   box.hidden = false;
-
-  const done = Daily.loadResult(dailyDay);
+  const text = Daily.shareText(done, lang() === 'zh');
+  const pre = document.createElement('pre');
+  pre.className = 'share-grid';
+  pre.textContent = text.split('\n').slice(0, -1).join('\n');
+  box.appendChild(pre);
   const run = Daily.streak(dailyDay);
-  const streakLine = run > 0 ? ` You are on a <strong>${run}-day streak</strong>.` : '';
-
-  if (!done) {
-    const note = document.createElement('p');
-    note.className = 'daily-note';
-    note.innerHTML = `Daily #${dailyDay} — <strong>${current.name}</strong>. ` +
-      'Everyone gets this exact board today. Your first result is the one that counts.' + streakLine;
-    box.appendChild(note);
-    return;
+  if (run > 0) {
+    // The streak lives here and in the records, never on the copied card.
+    const p = document.createElement('p');
+    p.className = 'share-streak';
+    p.textContent = `${t('streak')} ${run}`;
+    box.appendChild(p);
   }
+}
 
-  const card = document.createElement('div');
-  card.className = 'share-card';
-  const add = (tag, cls, text) => {
-    const node = document.createElement(tag);
-    node.className = cls;
-    node.textContent = text;
-    card.appendChild(node);
-    return node;
+/* ---------- sheets ---------- */
+
+const $ = (id) => document.getElementById(id);
+let openLayer = null;
+function openSheet(id) {
+  const layer = $(id);
+  if (!layer) return;
+  closeSheet();
+  layer.hidden = false;
+  openLayer = layer;
+  const focus = layer.querySelector('.btn-primary, .tab.on, button');
+  if (focus && focus.focus) focus.focus();
+}
+function closeSheet() {
+  if (openLayer) openLayer.hidden = true;
+  openLayer = null;
+}
+
+function celebrate() {
+  const m = document.querySelector && document.querySelector('#brand .mascot');
+  if (!m) return;
+  m.classList.remove('swim'); void m.getBoundingClientRect(); m.classList.add('swim');
+  clearTimeout(celebrate.t);
+  celebrate.t = setTimeout(() => m.classList.remove('swim'), 1000);
+}
+
+function showResult(won) {
+  if (!$('sheet-result') || current.lesson) return;
+  $('result-title').textContent = t(won ? 'res_win' : 'res_over');
+  $('result-line').innerHTML = UI.dom.status ? UI.dom.status.innerHTML : '';
+  $('sheet-result').classList.toggle('won', !!won);
+  renderShare();
+  const acts = $('result-actions');
+  acts.innerHTML = '';
+  const add = (label, cls, fn) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn ' + cls; b.textContent = label;
+    b.addEventListener('click', fn);
+    acts.appendChild(b);
+    return b;
   };
-  add('div', 'share-head', `TriOp #${done.day} · ${done.modeName}`);
-  add('pre', 'share-grid', done.grid);
-  add('div', 'share-detail', `${done.detail} — ${done.outcome}`);
-  // The streak lives here and in the stats panel, never on the copied card:
-  // a second number there would stop the card working as a currency.
-  if (run > 0) add('div', 'share-streak', `${run}-day streak`);
-
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'btn btn-primary';
-  btn.textContent = 'Copy result';
-  btn.addEventListener('click', async () => {
-    const ok = await Daily.copy(Daily.shareText(done));
-    btn.textContent = ok ? 'Copied' : 'Press Ctrl+C to copy';
-    setTimeout(() => { btn.textContent = 'Copy result'; }, 2000);
-    btn.blur();
-  });
-  card.appendChild(btn);
-  box.appendChild(card);
+  const done = daily && Daily.loadResult(dailyDay);
+  if (done) {
+    const copyBtn = add(t('copy_result'), 'btn-primary', async () => {
+      const ok = await Daily.copy(Daily.shareText(done, lang() === 'zh'));
+      copyBtn.textContent = ok ? t('copied') : t('copy_fail');
+      setTimeout(() => { copyBtn.textContent = t('copy_result'); }, 2000);
+    });
+    add(t('next_daily', { mode: current.name }), '', () => { closeSheet(); switchMode(current.id); });
+  } else {
+    add(t('play_again'), 'btn-primary', () => { closeSheet(); newRound(); });
+  }
+  add(t('close'), 'btn-quiet', closeSheet);
+  openSheet('sheet-result');
 }
 
 function switchMode(id) {
   clock.stop();
+  closeSheet();
+  if (inLesson) { lesson.stop(); inLesson = false; }
   if (id === 'daily') {
     if (daily) return;                           // already on today's board
     dailyDay = Daily.dayNumber();
@@ -190,14 +235,48 @@ function switchMode(id) {
   newRound();
 }
 
+function seen() { try { return JSON.parse(localStorage.getItem(SEEN_KEY) || '{}'); } catch { return {}; } }
+function markSeen(k) { const x = seen(); x[k] = 1; try { localStorage.setItem(SEEN_KEY, JSON.stringify(x)); } catch { /* ignore */ } }
+
 function paintChrome() {
-  UI.setTabs([DAILY_TAB, ...MODES], daily ? 'daily' : current.id, switchMode);
-  UI.dom.blurb.innerHTML = daily
-    ? `Daily #${Daily.dayNumber()} — today it is <strong>${current.name}</strong>. ${current.blurb}`
-    : current.blurb;
-  UI.setRules(current.rulesTitle, current.rules);
+  const sub = (m) => t(`mode_${m.id}_sub`, { mode: MODES.find((x) => x.id === Daily.modeForDay(Daily.dayNumber(), MODES.map((y) => y.id))).name });
+  UI.setTabs([DAILY_TAB, ...MODES].map((m) => ({ id: m.id, name: m.name, sub: sub(m) })), daily ? 'daily' : current.id, switchMode);
+  if (UI.dom.goal) {
+    UI.dom.goal.textContent = t(`goal_${current.id}`);
+    // A rule arrives once, the first time its mode opens, just above the board.
+    const k = daily ? `daily-${Daily.dayNumber()}` : current.id;
+    const line = daily ? t('daily_line', { n: Daily.dayNumber() }) : t(`rule_${current.id}`);
+    const fresh = !seen()[k];
+    UI.dom.callout.hidden = !fresh;
+    UI.dom.callout.textContent = fresh ? line : '';
+    if (fresh) markSeen(k);
+  }
+  paintWords();
   UI.showLevel(!daily && current.usesLevel !== false);
   document.body.dataset.mode = current.id;
+}
+
+/** Every fixed word on the page, in the current language. */
+function paintWords() {
+  const set = (id, txt) => { const n = $(id); if (n) n.textContent = txt; };
+  if (!$('app')) return;
+  set('mode-name', daily ? `${t('mode_daily')} #${Daily.dayNumber()}` : current.name);
+  set('more-word', t('more'));
+  set('modes-title', t('modes'));
+  set('more-title', t('more'));
+  set('level-word', t('difficulty'));
+  set('feed-word', t('feed'));
+  set('stats-word', t('records'));
+  set('lang', t('language'));
+  set('replay-first', t('first_again'));
+  document.querySelectorAll('[data-close]').forEach((b) => { b.textContent = t('close'); });
+  [...UI.dom.level.options].forEach((o) => { o.textContent = t(o.value); });
+  const rulesBox = UI.dom.rules;
+  const keep = rulesBox.querySelector('[data-why-exists]');
+  rulesBox.innerHTML = `<summary>${t('rules_title')}: ${current.name}</summary><ul>` +
+    rulesFor(current.id).map((r) => `<li>${r}</li>`).join('') + '</ul>';
+  if (keep) rulesBox.appendChild(keep);
+  paintSound();
 }
 
 /* ---------- ticker: keeps clocks honest without every mode owning a timer ---------- */
@@ -209,7 +288,7 @@ setInterval(() => {
   lastTick = now;
   if (hidden) return;                  // the clock does not run while the tab is away
   if (current.tick) current.tick(dt);
-  else if (clockRunning) UI.setHudValue('Time', clock.label());
+  else if (clockRunning) UI.setHudValue('time', clock.label());
 }, 250);
 
 /* ---------- moving progress between devices ---------- */
@@ -235,15 +314,12 @@ function renderTransfer() {
   box.innerHTML = '';
 
   const summary = document.createElement('summary');
-  summary.textContent = 'Move your progress to another device';
+  summary.textContent = t('t_sum');
   box.appendChild(summary);
 
   const blurb = document.createElement('p');
   blurb.className = 'transfer-note';
-  blurb.textContent =
-    'Your streak lives in this browser, so it does not follow you to another device and it '
-    + 'goes away if you clear your data. A restore code is all of it as one string. There is '
-    + 'no account and no server — the code only goes where you put it.';
+  blurb.textContent = t('t_note');
   box.appendChild(blurb);
 
   const status = document.createElement('p');
@@ -252,18 +328,18 @@ function renderTransfer() {
   const copyBtn = document.createElement('button');
   copyBtn.type = 'button';
   copyBtn.className = 'btn btn-primary';
-  copyBtn.textContent = 'Copy my restore code';
+  copyBtn.textContent = t('t_copy');
   copyBtn.addEventListener('click', async () => {
     const history = Daily.loadHistory();
     if (!Object.keys(history).length) {
-      status.textContent = 'Nothing to copy yet — play a daily first.';
+      status.textContent = t('t_none');
       return;
     }
     const code = Daily.exportCode(history, loadStats());
     const ok = await Daily.copy(code);
     status.textContent = ok
-      ? `Copied — ${Object.keys(history).length} day(s), ${code.length} characters.`
-      : 'Could not reach the clipboard. Select the code below and copy it by hand.';
+      ? t('t_copied', { d: Object.keys(history).length, c: code.length })
+      : t('t_noclip');
     field.value = code;
     copyBtn.blur();
   });
@@ -271,20 +347,20 @@ function renderTransfer() {
   const field = document.createElement('textarea');
   field.className = 'transfer-field';
   field.setAttribute('rows', '3');
-  field.setAttribute('placeholder', 'Paste a restore code here');
+  field.setAttribute('placeholder', t('t_paste'));
   field.setAttribute('aria-label', 'Restore code');
 
   const restoreBtn = document.createElement('button');
   restoreBtn.type = 'button';
   restoreBtn.className = 'btn';
-  restoreBtn.textContent = 'Restore from code';
+  restoreBtn.textContent = t('t_restore');
   restoreBtn.addEventListener('click', () => {
     const result = Daily.importCode(field.value);
     if (!result.ok) { status.textContent = result.error; return; }
     mergeStats(result.stats);
     status.textContent = result.added
-      ? `Restored ${result.added} day(s). ${result.kept} you already had were left alone.`
-      : `Nothing new — all ${result.kept} day(s) in that code were already here.`;
+      ? t('t_added', { a: result.added, k: result.kept })
+      : t('t_nothing', { k: result.kept });
     renderStats();
     renderShare();
     restoreBtn.blur();
@@ -314,7 +390,7 @@ globalThis.__triopAdvance = (ms) => {
 /* ---------- sound ---------- */
 
 function paintSound() {
-  UI.dom.sound.textContent = Audio.isOn() ? '🔊 Sound' : '🔇 Muted';
+  UI.dom.sound.textContent = Audio.isOn() ? t('sound_on') : t('sound_off');
   UI.dom.sound.setAttribute('aria-pressed', String(Audio.isOn()));
   UI.dom.sound.classList.toggle('btn-quiet', !Audio.isOn());
 }
@@ -346,6 +422,7 @@ document.addEventListener('keydown', (e) => {
   const tag = document.activeElement && document.activeElement.tagName;
   if (tag === 'SELECT' || tag === 'INPUT') return;
 
+  if (openLayer) { if (e.key === 'Escape') closeSheet(); return; }
   const key = e.key.toLowerCase();
   if (LETTERS.includes(key)) {
     e.preventDefault();
@@ -380,7 +457,49 @@ if (prefs.mode === 'daily') {
   current = startMode;
 }
 
-paintChrome();
-paintSound();
+function wireSheets() {
+  if (!$('app')) return;
+  $('modebtn').addEventListener('click', () => openSheet('sheet-modes'));
+  $('morebtn').addEventListener('click', () => { renderStats(); openSheet('sheet-more'); });
+  $('brand').addEventListener('click', () => openSheet('sheet-modes'));
+  document.querySelectorAll('.layer').forEach((layer) => {
+    layer.addEventListener('click', (e) => { if (e.target === layer) closeSheet(); });
+  });
+  document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', closeSheet));
+  UI.onMoreAction(closeSheet);
+  // A rule callout is gone after the first move.
+  UI.dom.board.addEventListener('click', () => { if (!inLesson) UI.dom.callout.hidden = true; });
+  $('lang').addEventListener('click', () => {
+    setLang(lang() === 'zh' ? 'en' : 'zh');
+    UI.resetControls();
+    paintChrome();
+    if (inLesson) lesson.render(); else current.render();
+    renderStats();
+    renderTransfer();
+  });
+  $('replay-first').addEventListener('click', () => { closeSheet(); startLesson(); });
+}
+
+function startLesson() {
+  clock.stop();
+  clock.reset();
+  clearSeed();
+  daily = false;
+  inLesson = true;
+  current = MODES[0];
+  paintChrome();
+  if (UI.dom.callout) UI.dom.callout.hidden = true;
+  current = lesson;
+  lesson.start();
+}
+
+setLang(lang());
+wireSheets();
 renderTransfer();
-newRound();
+const firstVisit = $('app') && !lessonDone() && !Object.keys(loadStats().modes).length;
+if (firstVisit) {
+  startLesson();
+} else {
+  paintChrome();
+  newRound();
+}

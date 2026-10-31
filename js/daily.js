@@ -80,8 +80,25 @@ export const daysPlayed = (history = loadHistory()) => Object.keys(history).leng
  * the card working as a currency. Points stay in the game; the card gets the
  * outcome.
  */
-export function shareText({ day, modeName, grid, detail, outcome }) {
-  return [`TriOp #${day} · ${modeName}`, grid, `${detail} — ${outcome}`, SITE].join('\n');
+/*
+ * The share line says how the run went, never the answer: the coded grid, the
+ * count, and one of three small lines picked by how clean the run was.
+ * EN and zh-Hant; at most 120 characters before the link.
+ */
+const MOOD = {
+  clean: ['three eyes, no blinks', '三隻眼，一眼都沒眨'],
+  close: ['fed, just in time', '剛好餵飽'],
+  messy: ['murky water today', '今天水有點濁'],
+};
+export function moodOf({ won, outcome }) {
+  if (!won) return 'messy';
+  if (/perfect|flawless|clean/.test(outcome || '')) return 'clean';
+  if (/over/.test(outcome || '')) return 'messy';
+  return 'close';
+}
+export function shareText(r, zh = false) {
+  const line = MOOD[moodOf(r)][zh ? 1 : 0];
+  return [`🦐 TriOp #${r.day} ${r.modeName}`, r.grid, `${r.detail} · ${line}`, SITE].join('\n');
 }
 
 /** Clipboard with a synchronous fallback for browsers that refuse the async API. */

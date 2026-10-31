@@ -2,24 +2,61 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <script src="playlab-zoomguard.js"></script>
-<meta name="theme-color" content="#f4f6fa">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%2312a06a'/><text x='8' y='12' font-family='ui-monospace,Menlo,monospace' font-weight='700' font-size='11' fill='%23ffffff' text-anchor='middle'>T</text></svg>">
-  <meta name="color-scheme" content="dark light" />
-  <meta name="description" content="TriOp — four arithmetic puzzle modes on one 12-tile board." />
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta name="color-scheme" content="dark" />
+  <meta name="description" content="Twelve tiles in a dark tank. Walk a number to its target, or hunt three-tile sums." />
+  <meta property="og:title" content="TriOp" />
+  <meta property="og:description" content="Twelve tiles in a dark tank. Walk a number to its target." />
+  <meta property="og:image" content="https://chenhsieh.github.io/triop-game/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:url" content="https://chenhsieh.github.io/triop-game/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://chenhsieh.github.io/triop-game/og.png" />
   <title>TriOp</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..800,0..100,0..1&family=Atkinson+Hyperlegible:wght@400;700&family=Noto+Serif+TC:wght@500;700&display=swap">
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header class="masthead">
-    <h1>Tri<span>Op</span></h1>
-    <p class="tagline">Twelve tiles. Four ways to play them.</p>
-  </header>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <!-- A small wobble so every outline looks drawn by hand, not set by a ruler. -->
+      <filter id="hand" x="-5%" y="-5%" width="110%" height="110%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="7" result="n" />
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+      <symbol id="triops" viewBox="0 0 100 100">
+        <path class="shell" style="fill: var(--shell, none)" d="M50 6 C76 6 92 24 92 46 C92 58 87 68 79 75 C75 65 67 57 58 54 L42 54 C33 57 25 65 21 75 C13 68 8 58 8 46 C8 24 24 6 50 6 Z" />
+        <path d="M50 31 L50 45" />
+        <path d="M44 54 Q45 72 47.5 86 L52.5 86 Q55 72 56 54" />
+        <path d="M45.5 62 Q50 64 54.5 62 M46 70 Q50 72 54 70 M46.8 78 Q50 80 53.2 78" />
+        <path d="M48 86 Q43 93 34 98 M52 86 Q57 93 66 98" />
+        <ellipse style="fill: var(--eye, currentColor); stroke: none" cx="44" cy="22" rx="3.4" ry="2.4" />
+        <ellipse style="fill: var(--eye, currentColor); stroke: none" cx="56" cy="22" rx="3.4" ry="2.4" />
+        <circle style="fill: var(--eye, currentColor); stroke: none" cx="50" cy="15" r="1.7" />
+      </symbol>
+    </defs>
+  </svg>
 
-  <main>
-    <nav class="tabs" id="tabs" aria-label="Game mode"></nav>
-    <p class="blurb" id="blurb"></p>
+  <div class="app" id="app">
+    <header class="bar">
+      <button type="button" class="brand" id="brand" aria-label="TriOp">
+        <svg class="mascot" viewBox="0 0 100 100" aria-hidden="true"><use href="#triops" /></svg>
+        <span class="name">TriOp</span>
+      </button>
+      <button type="button" class="barbtn modebtn" id="modebtn" aria-haspopup="dialog">
+        <span id="mode-name">Ladder</span><span class="caret" aria-hidden="true"></span>
+      </button>
+      <button type="button" class="barbtn" id="morebtn" aria-haspopup="dialog"><span id="more-word">More</span></button>
+    </header>
+
+    <p class="goal rule" id="goal" data-pl="goal" data-role="rule"></p>
+    <p class="callout" id="callout" hidden></p>
 
     <section class="hud" id="hud" aria-label="Round status" aria-live="polite"></section>
 
@@ -28,37 +65,58 @@
       <div class="slots" id="slots"></div>
     </section>
 
+    <section class="panel" id="panel" aria-live="polite"></section>
+    <p class="status" id="status" aria-live="polite"></p>
+
     <div class="board" id="board" role="group" aria-label="Tiles"></div>
     <p class="board-note" id="board-note"></p>
 
-    <section class="controls-row">
-      <label class="field" id="level-field">
-        <span>Difficulty</span>
-        <select id="level">
-          <option value="easy">Easy</option>
-          <option value="normal" selected>Normal</option>
-          <option value="hard">Hard</option>
-        </select>
-      </label>
-      <button type="button" id="sound" class="btn btn-icon" aria-pressed="true">🔊 Sound</button>
-      <div class="controls" id="controls"></div>
-    </section>
+    <div class="controls" id="controls"></div>
+  </div>
 
-    <section class="share" id="share" aria-live="polite" hidden></section>
+  <!-- Sheets: everything read once or used rarely lives one tap away. -->
+  <div class="layer" id="sheet-modes" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="modes-title">
+      <h2 id="modes-title" class="sheet-title"></h2>
+      <nav class="tabs" id="tabs" aria-label="Game mode"></nav>
+      <button type="button" class="btn sheet-close" data-close></button>
+    </div>
+  </div>
 
-    <section class="panel" id="panel" aria-live="polite"></section>
+  <div class="layer" id="sheet-more" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="more-title">
+      <h2 id="more-title" class="sheet-title"></h2>
+      <div class="more-controls" id="more-controls"></div>
+      <div class="settings">
+        <button type="button" id="lang" class="btn"></button>
+        <button type="button" id="sound" class="btn" aria-pressed="true"></button>
+        <label class="field" id="level-field">
+          <span id="level-word">Difficulty</span>
+          <select id="level">
+            <option value="easy">Easy</option>
+            <option value="normal" selected>Normal</option>
+            <option value="hard">Hard</option>
+          </select>
+        </label>
+        <button type="button" id="replay-first" class="btn"></button>
+      </div>
+      <details class="rules" id="rules" data-pl="howto-card"></details>
+      <details class="fold" id="feed-fold"><summary id="feed-word"></summary><div class="log" id="log" role="log"></div></details>
+      <details class="fold" id="stats-fold"><summary id="stats-word"></summary><section class="stats" id="stats"></section></details>
+      <details class="transfer" id="transfer"></details>
+      <button type="button" class="btn sheet-close" data-close></button>
+    </div>
+  </div>
 
-    <section class="log-wrap">
-      <h2 class="section-title">Feed</h2>
-      <div class="log" id="log" role="log" aria-live="polite"></div>
-    </section>
-
-    <section class="stats" id="stats" aria-label="Your records"></section>
-
-    <details class="transfer" id="transfer"></details>
-
-    <details class="rules" id="rules"></details>
-  </main>
+  <div class="layer result-layer" id="sheet-result" hidden>
+    <div class="sheet result" role="dialog" aria-modal="true" aria-labelledby="result-title">
+      <svg class="mascot big" viewBox="0 0 100 100" aria-hidden="true"><use href="#triops" /></svg>
+      <h2 id="result-title" class="sheet-title"></h2>
+      <p class="result-line" id="result-line"></p>
+      <section class="share" id="share" aria-live="polite" hidden></section>
+      <div class="result-actions" id="result-actions"></div>
+    </div>
+  </div>
 
   <script type="module" src="js/main.js"></script>
   <noscript><p class="board-note">TriOp needs JavaScript.</p></noscript>
