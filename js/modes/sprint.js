@@ -3,6 +3,7 @@
 import * as E from '../engine.js';
 import * as UI from '../ui.js';
 import { cue, crossedDown } from '../audio.js';
+import { t } from '../i18n.js';
 
 /*
  * THE RUN LENGTH IS FIXED. Nothing the player does adds time.
@@ -86,8 +87,7 @@ function start() {
 
   UI.clearLog();
   UI.renderBoard(s.tiles, E.LETTERS, pick);
-  UI.setBoardNote(`The board stays fixed — only the target changes. <em>One</em> solution clears it.`);
-  UI.say(`${band.seconds}s on the clock, and nothing extends it. Clear as many targets as you can.`);
+  UI.say(t('s_new', { s: band.seconds }));
   render();
 }
 
@@ -104,7 +104,7 @@ function tick(dt) {
   crossedDown(before, s.msLeft / total, CLOCK_WARNINGS)
     .forEach((t) => cue.warn(CLOCK_WARNINGS.indexOf(t)));
   const secs = Math.ceil(s.msLeft / 1000);
-  UI.setHudValue('Time left', `${secs}s`, secs <= 10);
+  UI.setHudValue('timeleft', `${secs}s`, secs <= 10);
 }
 
 function begin() {
@@ -144,7 +144,7 @@ function submit() {
     s.solved += 1;
     const points = BASE * s.chain;
     s.score += points;
-    UI.say(`<span class="mono">${label}</span> = ${s.target} &nbsp;+${points}` +
+    UI.say(t('hit', { k: `<span class="mono">${label}</span>`, target: s.target, p: points }) +
       (s.chain > 1 ? ` <span class="note">(×${s.chain})</span>` : ''), 'ok');
     UI.flashSlots('good');
     cue.hit();
@@ -154,8 +154,8 @@ function submit() {
     s.chain = 0;
     s.misses += 1;
     s.score -= MISS;
-    const off = whole === null ? '' : ` (off by ${Math.abs(whole - s.target)})`;
-    UI.say(`<span class="mono">${label}</span> = ${E.fmt(value)}${off} &nbsp;<span class="no">−${MISS}</span>`, 'no');
+    const off = whole === null ? '' : t('off_by', { n: Math.abs(whole - s.target) });
+    UI.say(t('miss', { k: `<span class="mono">${label}</span>`, v: E.fmt(value), off, p: MISS }), 'no');
     UI.flashSlots('bad');
     cue.miss();
   }
@@ -173,7 +173,7 @@ function skip() {
   if (s.over) return;
   s.score -= SKIP;
   s.chain = 0;
-  UI.say(`Skipped ${s.target} — <span class="no">−${SKIP}</span>`, 'note');
+  UI.say(t('s_skip', { target: s.target, p: SKIP }), 'note');
   nextTarget();
   render();
 }
@@ -184,23 +184,23 @@ function finish() {
   s.score = Math.max(0, s.score);
   host.clock.stop();
   cue.lose();
-  UI.say(`Time. ${s.solved} target${s.solved === 1 ? '' : 's'} cleared — final score ${s.score}.`, 'big');
+  UI.say(t('s_over', { n: s.solved, score: s.score }), 'big');
   host.award({ score: s.score, solved: s.solved, cleared: s.solved > 0 });
 }
 
 function render() {
   const secs = Math.ceil(s.msLeft / 1000);
   UI.setHud([
-    { label: 'Target', value: s.over ? '—' : s.target, big: true },
-    { label: 'Cleared', value: s.solved },
-    { label: 'Score', value: s.score, sub: s.chain > 1 ? `chain ×${s.chain}` : '' },
-    { label: 'Time left', value: `${secs}s`, warn: secs <= 10 },
+    { id: 'target', label: t('hud_target'), value: s.over ? '-' : s.target, big: true },
+    { id: 'cleared', label: t('hud_cleared'), value: s.solved },
+    { id: 'score', label: t('hud_score'), value: s.score, sub: s.chain > 1 ? t('chain_sub', { n: s.chain }) : '' },
+    { id: 'timeleft', label: t('hud_timeleft'), value: `${secs}s`, warn: secs <= 10 },
   ]);
   UI.setPrompt(s.over
-    ? `<span class="muted">Run over — ${s.solved} cleared, ${s.score} points.</span>`
+    ? `<span class="muted">${t('s_over', { n: s.solved, score: s.score })}</span>`
     : (s.combo.length
         ? s.combo.map((l, i) => (i === 0 ? String(s.tiles[l].num) : `${E.SYMBOL[s.tiles[l].op]} ${s.tiles[l].num}`)).join(' ')
-        : '<span class="muted">Any one combo clears the target</span>'));
+        : `<span class="muted">${t('any_combo')}</span>`));
   UI.setSlots([0, 1, 2].map((i) => {
     const l = s.combo[i];
     return l ? { top: l, main: i === 0 ? s.tiles[l].num : E.face(s.tiles[l]) } : null;
@@ -217,19 +217,18 @@ function render() {
     return { classes, disabled: s.over };
   });
   UI.setControls([
-    { id: 'skip', label: 'Skip target', quiet: true, disabled: s.over },
-    { id: 'new', label: 'New run', primary: true },
+    { id: 'skip', label: t('skip'), quiet: true, disabled: s.over },
+    { id: 'new', label: t('new_run'), primary: true, more: !s.over },
   ], action);
-  UI.setPanel(s.over
-    ? ''
-    : `<h2 class="section-title">This target</h2><div class="chips"><span class="chip missed">${s.solutions.length} combos work — you need one</span></div>`);
+  UI.setPanel('');
+  UI.setBoardNote(s.over ? '' : t('s_need', { n: s.solutions.length }));
 }
 
 function summary() {
   if (!s.over) return null;
   return {
     grid: '⚡'.repeat(Math.min(s.solved, 12)) || '⬛',
-    detail: `${s.solved} target${s.solved === 1 ? '' : 's'}`,
+    detail: t('sum_targets', { n: s.solved }),
     outcome: s.misses === 0 && s.solved > 0 ? 'clean run' : 'run over',
     score: s.score,
     won: s.solved > 0,
@@ -254,16 +253,8 @@ function key(e) {
 
 export default {
   id: 'sprint',
-  name: 'Sprint',
-  blurb: 'One solution per target, as many as you can fit in a fixed run.',
+  get name() { return t('mode_sprint'); },
   usesLevel: true,
-  rulesTitle: 'Sprint',
-  rules: [
-    'Same three-tile arithmetic as Classic, but you only need <strong>one</strong> combo per target.',
-    'The board never changes — you learn it as you go, which is the whole point.',
-    'The run is a fixed length and <strong>nothing extends it</strong> — clearing a target raises your chain multiplier, and a miss costs points and resets it.',
-    '<kbd>Space</kbd> skips a target for a bigger point penalty.',
-  ],
   init(h) { host = h; },
   start, pick, key, render, tick, summary,
 };

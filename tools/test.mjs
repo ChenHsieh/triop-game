@@ -1,5 +1,5 @@
 import { install } from './dom.mjs';
-const IDS = ['tabs','blurb','hud','prompt','slots','board','board-note','level','level-field','sound','controls','share','panel','log','stats','transfer','rules'];
+const IDS = ['tabs','goal','callout','status','more-controls','hud','prompt','slots','board','board-note','level','level-field','sound','controls','share','panel','log','stats','transfer','rules'];
 const { store, doc } = install(IDS);
 doc.visibilityState = 'visible';
 store['level'].value = 'normal';
@@ -12,7 +12,7 @@ const tabs = () => store['tabs'].children;
 const gotoMode = (name) => { const t = tabs().find((b) => b.textContent === name); t.fire('click'); };
 const setLevel = (lv) => { store['level'].value = lv; store['level'].fire('change'); };
 const hud = () => store['hud'].children.map((c) => c.innerHTML.replace(/<[^>]+>/g, '|').replace(/\|+/g, '|'));
-const ctl = (label) => store['controls'].children.find((b) => b.innerHTML.includes(label));
+const ctl = (label) => [...store['controls'].children, ...store['more-controls'].children].find((b) => b.innerHTML.includes(label));
 const tiles = () => store['board'].children.map((b) => b.dataset.letter);
 const parseTile = (btn) => { const m = btn.innerHTML.match(/class="sym">(.)<\/span>(\d+)/); return { op: m[1], num: +m[2] }; };
 const boardMap = () => Object.fromEntries(store['board'].children.map((b) => [b.dataset.letter, parseTile(b)]));
@@ -156,7 +156,7 @@ for (const lv of ['easy', 'normal', 'hard']) {
   }
   found.forEach(key);
   check(`${lv}: reaching target ends the ladder`, hud()[0].includes(String(target)), hud()[0]);
-  check(`${lv}: the shortest line is named as beating par`, feed(1)[0].includes('perfect line'), feed(1)[0]);
+  check(`${lv}: the shortest line is named as beating par`, feed(1)[0].includes('the best line'), feed(1)[0]);
   console.log('  ', lv, 'feed:', feed(1));
 }
 
@@ -288,8 +288,8 @@ console.log('\n=== daily ===');
   const dailyTab = tabs()[0];
   dailyTab.fire('click');
   check('daily tab hides the difficulty selector', store['level-field'].hidden === true);
-  check('daily announces the board before you finish', !!store['share'].querySelector('.daily-note'), '');
-  check('daily uses the rotated mode', store['blurb'].innerHTML.includes('today it is'), '');
+  check('daily announces the board before you finish', store['callout'].textContent.includes(`#${day}`), store['callout'].textContent);
+  check('daily uses the rotated mode', doc.body.dataset.mode === modeId && store['goal'].textContent.length > 0, doc.body.dataset.mode);
 
   // finish it: the daily rotation lands on one mode, so drive whichever it is
   const before = JSON.stringify(store['board'].children.map((b) => b.innerHTML));
@@ -308,18 +308,21 @@ console.log('\n=== daily ===');
     outerBurn:
     for (const a of L) for (const b2 of L) for (const c of L) {
       if (a === b2 || b2 === c || a === c) continue;
-      if (store['share'].querySelector('.share-card') || guard++ > 40) break outerBurn;
+      if (store['share'].querySelector('.share-grid') || guard++ > 40) break outerBurn;
       key(a); key(b2); key(c); key('Enter');
     }
   }
-  const card = store['share'].querySelector('.share-card');
+  const card = store['share'].querySelector('.share-grid');
   check('share card appears once the daily is done', !!card, '');
   const stored = D.loadResult(day);
   check('daily result stored for today', stored && stored.day === day, JSON.stringify(stored));
   const text = D.shareText(stored);
   // A spoiler would be a literal combo, which the game always renders uppercase.
   check('share text leaks no combo', !/[QWERASDFZXCV]{3}/.test(text), text.replace(/\n/g, ' | '));
-  check('share text carries day, mode and outcome', text.includes(`#${day}`) && text.includes(stored.modeName) && text.includes(stored.outcome));
+  check('share text carries day, mode and how it went', text.includes(`#${day}`) && text.includes(stored.modeName) && text.includes(stored.detail));
+  const beforeLink = [...text.split('\n').slice(0, -1).join('\n')].length;
+  check('share text is at most 120 characters before the link', beforeLink <= 120, String(beforeLink));
+  check('share text has a zh-Hant variant', /[\u4e00-\u9fff]/.test(D.shareText(stored, true)), D.shareText(stored, true).replace(/\n/g, ' | '));
   check('share text no longer carries points as a second number', !text.includes('pts'), text.replace(/\n/g, ' | '));
   console.log('  share text:'); console.log(text.split('\n').map((l) => '    ' + l).join('\n'));
 

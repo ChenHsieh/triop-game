@@ -3,6 +3,7 @@
 import * as E from '../engine.js';
 import * as UI from '../ui.js';
 import { cue } from '../audio.js';
+import { t } from '../i18n.js';
 
 /*
  * `optimum` is the true shortest route, found by exhaustive breadth-first search
@@ -37,8 +38,7 @@ function start() {
   };
   UI.clearLog();
   UI.renderBoard(s.tiles, E.LETTERS, pick);
-  UI.setBoardNote('Tiles apply <em>left to right</em> — no precedence here. Greyed tiles would break the whole number.');
-  UI.say(`Walk ${s.start} to ${s.target}. Par is ${s.par} tiles — ${s.optimum} is possible, and beats par.`);
+  UI.say(t('l_walk', { start: s.start, target: s.target, par: s.par, opt: s.optimum }));
   render();
 }
 
@@ -75,7 +75,7 @@ function pick(letter) {
   if (s.trail.includes(letter)) { UI.flashSlots('shake'); cue.reject(); return; }
   const next = legal(s.value, s.tiles[letter]);
   if (next === null) {
-    UI.say(`<span class="mono">${letter.toUpperCase()}</span> would leave a fraction — not allowed here.`, 'no');
+    UI.say(t('l_fraction', { k: `<span class="mono">${letter.toUpperCase()}</span>` }), 'no');
     UI.flashSlots('shake');
     cue.reject();
     return;
@@ -91,7 +91,7 @@ function pick(letter) {
   } else {
     cue.step(next > before);
     s.stuck = !routeFromHere();
-    if (s.stuck) UI.say('No short route from here — undo a step.', 'no');
+    if (s.stuck) UI.say(t('l_stuck'), 'no');
   }
   render();
 }
@@ -118,12 +118,12 @@ function reset() {
 function hint() {
   if (s.over || s.hintsLeft <= 0) return;
   const route = routeFromHere();
-  if (!route) { UI.say('No route from here — undo first.', 'no'); return; }
+  if (!route) { UI.say(t('l_noroute'), 'no'); return; }
   s.hintsLeft -= 1;
   s.hintsUsed += 1;
   s.hinted = route[0];
   host.clock.start();
-  UI.say(`Hint: play <span class="mono">${route[0].toUpperCase()}</span> next — ${route.length} tile${route.length === 1 ? '' : 's'} left from here. &nbsp;−${SCORE.hint}`, 'big');
+  UI.say(t('l_hint', { k: `<span class="mono">${route[0].toUpperCase()}</span>`, n: route.length, cost: SCORE.hint }), 'big');
   render();
 }
 
@@ -139,8 +139,8 @@ function finish() {
   s.score = Math.max(SCORE.floor, SCORE.base - SCORE.overPar * over)
     + (perfect ? SCORE.perfectLine : 0) - SCORE.hint * s.hintsUsed + bonus;
   s.score = Math.max(0, s.score);
-  const verdict = perfect ? `the perfect line, +${SCORE.perfectLine}` : over === 0 ? 'on par' : `${over} over par`;
-  UI.say(`Reached ${s.target} in ${s.trail.length} tiles — ${verdict}. Time bonus +${bonus}. Final score ${s.score}.`, 'big');
+  const verdict = perfect ? t('l_perfect') : over === 0 ? t('l_onpar') : t('l_over', { n: over });
+  UI.say(t('l_win', { target: s.target, n: s.trail.length, verdict, score: s.score }), 'big');
   host.award({ score: s.score, solved: 1, cleared: true });
 }
 
@@ -151,8 +151,8 @@ function giveUp() {
   cue.lose();
   const route = routeFromHere();
   UI.say(route
-    ? `Gave up — from ${s.value} the shortest finish was <span class="mono">${route.map((l) => l.toUpperCase()).join(' ')}</span>.`
-    : 'Gave up.', 'big');
+    ? t('l_gaveup', { v: s.value, route: `<span class="mono">${route.map((l) => l.toUpperCase()).join(' ')}</span>` })
+    : t('gaveup'), 'big');
   host.award({ score: 0, solved: 0, cleared: false });
   render();
 }
@@ -173,10 +173,10 @@ function trailHTML() {
 function render() {
   const band = BANDS[host.level()];
   UI.setHud([
-    { label: 'Now', value: s.value, big: true },
-    { label: 'Target', value: s.target },
-    { label: 'Tiles', value: `${s.trail.length}/${s.par}`, sub: `par · ${s.optimum} beats it` },
-    { label: 'Time', value: host.clock.label() },
+    { id: 'now', label: t('hud_now'), value: s.value, big: true },
+    { id: 'target', label: t('hud_target'), value: s.target },
+    { id: 'tiles', label: t('hud_tiles'), value: `${s.trail.length}/${s.par}`, sub: t('par_sub', { par: s.par, opt: s.optimum }) },
+    { id: 'time', label: t('hud_time'), value: host.clock.label() },
   ]);
   UI.setPrompt(trailHTML());
   UI.setSlots([]);
@@ -194,27 +194,23 @@ function render() {
     };
   });
   UI.setControls([
-    { id: 'undo', label: 'Undo', quiet: !s.stuck, primary: !!s.stuck, nudge: !!s.stuck,
+    { id: 'undo', label: t('undo'), quiet: !s.stuck, primary: !!s.stuck, nudge: !!s.stuck,
       disabled: s.over || !s.trail.length },
-    { id: 'reset', label: 'Reset', quiet: true, disabled: s.over || !s.trail.length },
-    { id: 'hint', label: 'Hint', badge: s.hintsLeft, disabled: s.over || s.hintsLeft <= 0 },
-    { id: 'giveup', label: 'Give up', quiet: true, disabled: s.over },
-    { id: 'new', label: 'New ladder', primary: true },
+    { id: 'reset', label: t('reset'), quiet: true, more: true, disabled: s.over || !s.trail.length },
+    { id: 'hint', label: t('hint'), badge: s.hintsLeft, disabled: s.over || s.hintsLeft <= 0 },
+    { id: 'giveup', label: t('giveup'), quiet: true, more: true, disabled: s.over },
+    { id: 'new', label: t('new_ladder'), primary: true, more: !s.over },
   ], action);
-  UI.setPanel(
-    `<h2 class="section-title">Distance</h2>` +
-    `<div class="chips"><span class="chip missed">${s.value} → ${s.target}` +
-    `${s.value === s.target ? ' — arrived' : ` (${s.target - s.value > 0 ? '+' : ''}${s.target - s.value} away)`}</span></div>`
-  );
+  UI.setPanel('');
 }
 
 function summary() {
   if (!s.over) return null;
-  if (!s.won) return { grid: '⬛'.repeat(s.par), detail: `–/${s.par} tiles`, outcome: 'gave up', score: 0, won: false };
+  if (!s.won) return { grid: '⬛'.repeat(s.par), detail: t('sum_tiles', { n: '-', par: s.par }), outcome: 'gave up', score: 0, won: false };
   const over = Math.max(0, s.trail.length - s.par);
   return {
     grid: '🟩'.repeat(Math.min(s.trail.length, s.par)) + '🟨'.repeat(Math.min(over, 6)),
-    detail: `${s.trail.length}/${s.par} tiles`,
+    detail: t('sum_tiles', { n: s.trail.length, par: s.par }),
     outcome: s.trail.length <= s.optimum ? 'perfect line' : over === 0 ? 'on par' : `${over} over`,
     score: s.score,
     won: true,
@@ -238,16 +234,8 @@ function key(e) {
 
 export default {
   id: 'ladder',
-  name: 'Ladder',
-  blurb: 'Climb from the start value to the target, one tile at a time.',
+  get name() { return t('mode_ladder'); },
   usesLevel: true,
-  rulesTitle: 'Ladder',
-  rules: [
-    'You start on a number. Each tile you play applies its operator to the <strong>running total</strong>, left to right — no precedence to track.',
-    'Every step must stay a whole number. Tiles that would not are greyed out, so every move you can see is a legal move.',
-    'Each tile is usable once. <kbd>Backspace</kbd> undoes a step for free, <kbd>Esc</kbd> resets.',
-    'Par is one tile more than the shortest possible route, so par is a good line and the shortest line <em>beats</em> it for a bonus. Going over par costs points, not the round.',
-  ],
   init(h) { host = h; },
   start, pick, key, render, summary,
 };
