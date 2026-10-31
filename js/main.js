@@ -178,6 +178,8 @@ function celebrate() {
   const m = document.querySelector && document.querySelector('#brand .mascot');
   if (!m) return;
   m.classList.remove('swim'); void m.getBoundingClientRect(); m.classList.add('swim');
+  clearTimeout(celebrate.t);
+  celebrate.t = setTimeout(() => m.classList.remove('swim'), 1000);
 }
 
 function showResult(won) {
